@@ -3,3 +3,7 @@ dist
 .env
 *.log
 .DS_Store
+
+# any stray credentials file, not just the exact name .env
+.env*
+!.env.example

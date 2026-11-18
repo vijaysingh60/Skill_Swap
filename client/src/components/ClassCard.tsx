@@ -1,4 +1,4 @@
-import { BadgeCheck, CalendarDays, Clock, Users, Video, X } from 'lucide-react';
+import { BadgeCheck, CalendarDays, Clock, IndianRupee, Users, Video, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -6,6 +6,7 @@ import { useNow } from '../hooks/useNow';
 import { cn } from '../lib/cn';
 import { formatDay, formatTimeRange, hasStarted, phaseAt, timeUntil } from '../lib/time';
 import type { ClassSession } from '../types';
+import { PaymentDialog } from './PaymentDialog';
 import { Avatar } from './ui/Avatar';
 import { Badge } from './ui/Badge';
 import { Button, LinkButton } from './ui/Button';
@@ -36,8 +37,9 @@ function StatusBadges({ session, now }: { session: ClassSession; now: number }) 
 export function ClassCard({ session, onChange }: Props) {
   const toast = useToast();
   const now = useNow();
-  const [busy, setBusy] = useState<'join' | 'leave' | 'cancel' | null>(null);
+  const [busy, setBusy] = useState<'join' | 'pay' | 'leave' | 'cancel' | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
 
   const phase = phaseAt(session, now);
   const over = now > new Date(session.endsAt).getTime();
@@ -45,8 +47,9 @@ export function ClassCard({ session, onChange }: Props) {
   const canEnter = member && phase === 'open';
   const full = session.spotsLeft === 0 && !session.joined;
   const joinable = !session.isHost && !session.joined && (phase === 'upcoming' || phase === 'open') && !over;
+  const needsPayment = joinable && session.price > 0 && !session.paidByMe;
 
-  const run = async (kind: 'join' | 'leave' | 'cancel', action: () => Promise<{ session: ClassSession }>, success: string) => {
+  const run = async (kind: 'join' | 'pay' | 'leave' | 'cancel', action: () => Promise<{ session: ClassSession }>, success: string) => {
     if (busy) return; // ignore double clicks while a request is in flight
     setBusy(kind);
     try {
@@ -58,13 +61,30 @@ export function ClassCard({ session, onChange }: Props) {
     } finally {
       setBusy(null);
       setConfirmingCancel(false);
+      setConfirmingPayment(false);
     }
   };
+
+  // The dialog's demo payment, then the regular join — one user action, two calls.
+  const payThenJoin = () =>
+    run('pay', async () => {
+      await api.payForSession(session.id);
+      return api.joinSession(session.id);
+    }, `Paid ₹${session.price} and joined! ${session.title} is on your schedule.`);
 
   return (
     <article className={cn('card flex h-full flex-col gap-4 p-5', (phase === 'cancelled' || phase === 'ended') && 'opacity-80')}>
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <Badge tone="neutral">{session.skill}</Badge>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge tone="neutral">{session.skill}</Badge>
+          {session.price > 0 ? (
+            <Badge tone="violet" icon={IndianRupee}>
+              {session.price}
+            </Badge>
+          ) : (
+            <Badge tone="success">Free</Badge>
+          )}
+        </div>
         <StatusBadges session={session} now={now} />
       </div>
 
@@ -130,8 +150,13 @@ export function ClassCard({ session, onChange }: Props) {
           </LinkButton>
         )}
         {joinable && (
-          <Button className="flex-1" loading={busy === 'join'} disabled={full} onClick={() => run('join', () => api.joinSession(session.id), `You’re in! ${session.title} is on your schedule.`)}>
-            {full ? 'Class full' : 'Join class'}
+          <Button
+            className="flex-1"
+            loading={busy === 'join' || busy === 'pay'}
+            disabled={full}
+            onClick={() => (needsPayment ? setConfirmingPayment(true) : run('join', () => api.joinSession(session.id), `You’re in! ${session.title} is on your schedule.`))}
+          >
+            {full ? 'Class full' : needsPayment ? `Pay ₹${session.price} & join` : 'Join class'}
           </Button>
         )}
         {session.joined && phase === 'upcoming' && (
@@ -159,6 +184,8 @@ export function ClassCard({ session, onChange }: Props) {
         onConfirm={() => run('cancel', () => api.cancelSession(session.id), 'Class cancelled.')}
         onCancel={() => setConfirmingCancel(false)}
       />
+
+      <PaymentDialog open={confirmingPayment} classTitle={session.title} amount={session.price} loading={busy === 'pay'} onConfirm={payThenJoin} onCancel={() => setConfirmingPayment(false)} />
     </article>
   );
 }

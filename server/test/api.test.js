@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
-import { api, registerUser, resetDb, setSkills, startTestServer, stopTestServer } from './helpers.js';
+import { api, registerUser, resetDb, setSkills, startTestServer, stopTestServer, User } from './helpers.js';
 
 before(startTestServer);
 after(stopTestServer);
@@ -17,12 +17,16 @@ describe('auth', () => {
     assert.equal(res.status, 201);
     assert.ok(res.body.token);
     assert.equal(res.body.user.email, 'ada@example.com');
+    assert.equal(res.body.user.emailVerified, false, 'not verified yet, but the first session is still granted');
     assert.equal(JSON.stringify(res.body).includes('password'), false);
 
-    const { User } = await import('../src/models/User.js');
     const stored = await User.findOne({ email: 'ada@example.com' }).select('+passwordHash');
     assert.ok(stored.passwordHash.startsWith('$2'), 'password should be a bcrypt hash');
     assert.notEqual(stored.passwordHash, 'password123');
+
+    // The later tests in this file log Ada back in with a fresh password-only request, so mark her
+    // verified here; the "email verification" describe block below tests the unverified path itself.
+    await User.updateOne({ email: 'ada@example.com' }, { emailVerified: true });
   });
 
   it('rejects invalid registration input with field errors', async () => {
@@ -279,5 +283,95 @@ describe('exchange requests', () => {
   it('allows a new request for the same skills once the earlier one is no longer pending', async () => {
     const res = await send(alice.token, { recipientId: bob.user.id, skillWanted: 'Chess', skillOffered: 'Python' });
     assert.equal(res.status, 201);
+  });
+});
+
+describe('requests from a student with no skills to offer', () => {
+  let newbie, bob;
+  before(async () => {
+    await resetDb();
+    newbie = await registerUser({ name: 'Newbie' }); // never calls setSkills: skillsOffered stays []
+    bob = await registerUser({ name: 'Bob' });
+    await setSkills(bob.token, [skill('Guitar')], []);
+  });
+
+  it('can send a request without offering anything back', async () => {
+    const res = await api('POST', '/requests', { token: newbie.token, body: { recipientId: bob.user.id, skillWanted: 'Guitar', message: 'Please teach me!' } });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.request.skillWanted, 'Guitar');
+    assert.equal(res.body.request.skillOffered, '');
+  });
+
+  it('still cannot offer a skill it does not have', async () => {
+    const res = await api('POST', '/requests', { token: newbie.token, body: { recipientId: bob.user.id, skillWanted: 'Guitar', skillOffered: 'Python' } });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.errors.skillOffered);
+  });
+
+  it('a duplicate pending request with no skill offered is still blocked', async () => {
+    const dupe = await api('POST', '/requests', { token: newbie.token, body: { recipientId: bob.user.id, skillWanted: 'Guitar' } });
+    assert.equal(dupe.status, 409);
+  });
+
+  it('the recipient sees it as a plain request to learn, and can still accept it', async () => {
+    const { body } = await api('GET', '/requests', { token: bob.token });
+    assert.equal(body.incoming[0].skillOffered, '');
+    const accepted = await api('PATCH', `/requests/${body.incoming[0].id}`, { token: bob.token, body: { status: 'accepted' } });
+    assert.equal(accepted.status, 200);
+    assert.equal(accepted.body.request.requester.email, newbie.email);
+  });
+});
+
+describe('email verification', () => {
+  const email = 'verify.me@uohyd.ac.in';
+  before(resetDb);
+
+  it('registering only restricts the email domain; any domain name shape still needs verifying', async () => {
+    const wrongDomain = await api('POST', '/auth/register', { body: { name: 'X', email: 'x@gmail.com', password: 'password123', university: 'UoH', department: 'CS' } });
+    assert.equal(wrongDomain.status, 400);
+    assert.match(wrongDomain.body.errors.email, /university email/i);
+
+    const ok = await api('POST', '/auth/register', { body: { name: 'Vera', email, password: 'password123', university: 'UoH', department: 'CS' } });
+    assert.equal(ok.status, 201);
+    assert.equal(ok.body.user.emailVerified, false);
+  });
+
+  it('cannot log back in until the email is verified', async () => {
+    const res = await api('POST', '/auth/login', { body: { email, password: 'password123' } });
+    assert.equal(res.status, 403);
+    assert.equal(res.body.emailNotVerified, true);
+  });
+
+  it('rejects a garbage or expired token', async () => {
+    assert.equal((await api('POST', '/auth/verify-email', { body: { token: 'not-a-real-token' } })).status, 400);
+    await User.updateOne({ email }, { emailVerificationExpires: new Date(Date.now() - 1000) });
+    const { emailVerificationToken } = await User.findOne({ email }).select('+emailVerificationToken');
+    const expired = await api('POST', '/auth/verify-email', { body: { token: emailVerificationToken } });
+    assert.equal(expired.status, 400);
+    assert.match(expired.body.message, /expired/i);
+  });
+
+  it('resend-verification always replies the same way, whether the email is unknown, already verified, or real', async () => {
+    const unknown = await api('POST', '/auth/resend-verification', { body: { email: 'nobody@uohyd.ac.in' } });
+    const real = await api('POST', '/auth/resend-verification', { body: { email } });
+    assert.equal(unknown.status, 200);
+    assert.deepEqual(unknown.body, real.body, 'the response must not reveal which emails are registered');
+  });
+
+  it('verifying with a fresh token logs the user in and the account works from then on', async () => {
+    const { emailVerificationToken } = await User.findOne({ email }).select('+emailVerificationToken');
+    const res = await api('POST', '/auth/verify-email', { body: { token: emailVerificationToken } });
+    assert.equal(res.status, 200);
+    assert.ok(res.body.token);
+    assert.equal(res.body.user.emailVerified, true);
+
+    const login = await api('POST', '/auth/login', { body: { email, password: 'password123' } });
+    assert.equal(login.status, 200);
+
+    // Already verified: resending must not hand out a usable token for a second verify.
+    const afterVerified = await api('POST', '/auth/resend-verification', { body: { email } });
+    assert.equal(afterVerified.status, 200);
+    const stillGone = await User.findOne({ email }).select('+emailVerificationToken');
+    assert.equal(stillGone.emailVerificationToken, undefined);
   });
 });

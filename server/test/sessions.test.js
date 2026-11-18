@@ -36,6 +36,17 @@ describe('scheduling classes', () => {
     assert.equal((await api('POST', '/sessions', { token: host.token, body: body({ description: 'x'.repeat(501) }) })).status, 400);
   });
 
+  it('can only schedule a class in a skill it actually teaches', async () => {
+    const res = await api('POST', '/sessions', { token: host.token, body: body({ skill: 'Flying' }) });
+    assert.equal(res.status, 400);
+    assert.match(res.body.errors.skill, /own profile/i);
+
+    // Case-insensitive, and stored using the exact spelling/casing from the instructor's profile.
+    const ok = await api('POST', '/sessions', { token: host.token, body: body({ skill: 'PYTHON', startsAt: minutesFromNow(500) }) });
+    assert.equal(ok.status, 201);
+    assert.equal(ok.body.session.skill, 'Python');
+  });
+
   it('creates a class hosted by the caller, and refuses overlapping classes', async () => {
     const res = await api('POST', '/sessions', { token: host.token, body: body({ startsAt: minutesFromNow(600) }) });
     assert.equal(res.status, 201);
@@ -63,7 +74,7 @@ describe('browsing, joining and leaving', () => {
     await resetDb();
     host = await registerUser({ name: 'Hana Host' });
     other = await registerUser({ name: 'Otto Other' });
-    await makeInstructor(host.user.id);
+    await makeInstructor(host.user.id, 'Experienced tutor', ['Python', 'Guitar', 'Statistics']);
     await makeInstructor(other.user.id);
     for (let i = 0; i < 5; i++) students.push(await registerUser({ name: `Student ${i}` }));
     s1 = await createClass(host.token, { title: 'Guitar for beginners', skill: 'Guitar', startsAt: minutesFromNow(300), capacity: 2 });

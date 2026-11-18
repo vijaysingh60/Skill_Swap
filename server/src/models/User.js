@@ -25,6 +25,13 @@ const userSchema = new mongoose.Schema(
     skillsOffered: { type: [skillSchema], default: [] },
     skillsWanted: { type: [skillSchema], default: [] },
 
+    // Must be true to log in (see auth.controller.js). Accounts inserted directly (seed.js, or
+    // migrated data) default to false and need the usual verify-email step, same as anyone else.
+    emailVerified: { type: Boolean, default: false },
+    // Hidden by default, like passwordHash: never returned unless explicitly selected.
+    emailVerificationToken: { type: String, select: false },
+    emailVerificationExpires: { type: Date, select: false },
+
     // Only an admin can change `role` or approve an instructor; no public endpoint writes these.
     role: { type: String, enum: ROLES, default: 'user' },
     // Which hat the user is wearing in the UI. Only meaningful while instructor.status is "verified".

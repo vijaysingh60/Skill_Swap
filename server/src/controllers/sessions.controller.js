@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
+import { Payment } from '../models/Payment.js';
 import { Session } from '../models/Session.js';
 import { HttpError } from '../utils/httpError.js';
 import { getJaasConfig, signRoomToken } from '../utils/jaas.js';
 import { sessionDto } from '../utils/serialize.js';
 import { MAX_AHEAD_DAYS, MIN_LEAD_MINUTES, phaseOf, roomClosesAt, roomOpensAt } from '../utils/sessions.js';
-import { escapeRegex } from '../utils/skills.js';
+import { escapeRegex, findSkill } from '../utils/skills.js';
 import { OBJECT_ID_RE, validateNewSession } from '../utils/validate.js';
 
 const HOST_FIELDS = 'name department instructor.headline';
@@ -55,19 +56,34 @@ export async function listSessions(req, res) {
   let query = withHost(Session.find(filter).sort({ startsAt: 1 }).limit(limit));
   if (view === 'hosting') query = query.populate('attendees', 'name department');
   const sessions = await query;
-  res.json({ sessions: sessions.map((s) => sessionDto(s, me)) });
+
+  // One query for every paid class in the page, instead of one per session.
+  const pricedIds = sessions.filter((s) => s.price > 0).map((s) => s._id);
+  const paidSessionIds = pricedIds.length === 0 ? new Set() : new Set((await Payment.find({ student: me, session: { $in: pricedIds } }).distinct('session')).map(String));
+
+  res.json({ sessions: sessions.map((s) => sessionDto(s, me, paidSessionIds)) });
 }
 
 export async function getSession(req, res) {
   const session = await loadSession(req.params.id);
   if (!session) throw new HttpError(404, 'Class not found.');
   if (session.instructor._id.equals(req.user._id)) await session.populate('attendees', 'name department');
-  res.json({ session: sessionDto(session, req.user._id) });
+  const paid = session.price > 0 && Boolean(await Payment.exists({ student: req.user._id, session: session._id }));
+  res.json({ session: sessionDto(session, req.user._id, paid) });
 }
 
 export async function createSession(req, res) {
   const data = validateNewSession(req.body, new Date(), { minLeadMinutes: MIN_LEAD_MINUTES, maxAheadDays: MAX_AHEAD_DAYS });
   const me = req.user._id;
+
+  // A class can only teach a skill the instructor has actually listed on their own profile,
+  // not anything typed into the form. Use the exact spelling/casing from their profile.
+  const ownSkill = findSkill(req.user.skillsOffered, data.skill);
+  if (!ownSkill) {
+    throw new HttpError(400, 'Please fix the highlighted fields.', { skill: 'Choose a skill from your own profile. Add it on My Skills first if it’s missing.' });
+  }
+  data.skill = ownSkill.name;
+
   const endsAt = new Date(data.startsAt.getTime() + data.durationMinutes * 60_000);
 
   const clash = await Session.exists({ instructor: me, status: 'scheduled', startsAt: { $lt: endsAt }, endsAt: { $gt: data.startsAt } });
@@ -87,6 +103,15 @@ export async function joinSession(req, res) {
   const me = req.user._id;
   if (!OBJECT_ID_RE.test(id)) throw new HttpError(404, 'Class not found.');
 
+  // Paid classes must be paid for first — POST /sessions/:id/pay, then join. Checked here rather
+  // than folded into the atomic update below because it needs a clear, specific error (402, with
+  // the price) rather than a generic "can't join", and it never races the capacity check: paying
+  // doesn't reserve a seat, it only unlocks the right to try to join one.
+  const price = await Session.findById(id).select('price');
+  if (price?.price > 0 && !(await Payment.exists({ student: me, session: id }))) {
+    throw new HttpError(402, 'Please pay to join this class.', undefined, { price: price.price });
+  }
+
   const updated = await withHost(
     Session.findOneAndUpdate(
       {
@@ -101,7 +126,7 @@ export async function joinSession(req, res) {
       { returnDocument: 'after' },
     ),
   );
-  if (updated) return res.json({ session: sessionDto(updated, me) });
+  if (updated) return res.json({ session: sessionDto(updated, me, updated.price > 0) });
 
   const session = await Session.findById(id);
   if (!session) throw new HttpError(404, 'Class not found.');
@@ -112,13 +137,44 @@ export async function joinSession(req, res) {
   throw new HttpError(409, 'This class is full.');
 }
 
+/**
+ * MOCK payment: records a receipt instantly, with no real gateway or money involved (see
+ * models/Payment.js). Paying doesn't join the class by itself — call POST /sessions/:id/join next.
+ */
+export async function payForSession(req, res) {
+  const { id } = req.params;
+  const me = req.user._id;
+  if (!OBJECT_ID_RE.test(id)) throw new HttpError(404, 'Class not found.');
+
+  const session = await Session.findById(id);
+  if (!session) throw new HttpError(404, 'Class not found.');
+  if (session.instructor.equals(me)) throw new HttpError(400, 'You are hosting this class, so there is nothing to pay.');
+  if (session.price <= 0) throw new HttpError(400, 'This class is free — no payment needed.');
+  if (session.status === 'cancelled') throw new HttpError(409, 'This class was cancelled.');
+  if (session.endsAt <= new Date()) throw new HttpError(409, 'This class has already ended.');
+
+  // Idempotent: paying twice for the same class returns the original receipt, never a double charge.
+  let payment = await Payment.findOne({ student: me, session: id });
+  if (!payment) {
+    try {
+      payment = await Payment.create({ student: me, session: id, amount: session.price });
+    } catch (err) {
+      if (err.code === 11000) payment = await Payment.findOne({ student: me, session: id }); // lost a race with a duplicate click
+      else throw err;
+    }
+  }
+  res.status(201).json({ payment: { id: String(payment._id), amount: payment.amount, provider: payment.provider, createdAt: payment.createdAt } });
+}
+
 export async function leaveSession(req, res) {
   const { id } = req.params;
   const me = req.user._id;
   if (!OBJECT_ID_RE.test(id)) throw new HttpError(404, 'Class not found.');
 
   const updated = await withHost(Session.findOneAndUpdate({ _id: id, attendees: me, endsAt: { $gt: new Date() } }, { $pull: { attendees: me } }, { returnDocument: 'after' }));
-  if (updated) return res.json({ session: sessionDto(updated, me) });
+  // Leaving never refunds (it's a receipt, not a reservation — see models/Payment.js), so someone
+  // who paid and rejoins later isn't charged again.
+  if (updated) return res.json({ session: sessionDto(updated, me, updated.price > 0) });
 
   const session = await Session.findById(id);
   if (!session) throw new HttpError(404, 'Class not found.');

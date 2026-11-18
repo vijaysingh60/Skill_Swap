@@ -16,9 +16,12 @@ import MyProfile from './pages/MyProfile';
 import MySkills from './pages/MySkills';
 import NotFound from './pages/NotFound';
 import Register from './pages/Register';
+import RequestChat from './pages/RequestChat';
+import RequestRoom from './pages/RequestRoom';
 import Requests from './pages/Requests';
 import StudentProfile from './pages/StudentProfile';
 import Teaching from './pages/Teaching';
+import VerifyEmail from './pages/VerifyEmail';
 
 export default function App() {
   return (
@@ -31,17 +34,20 @@ export default function App() {
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        {/* The live room uses the whole screen, so it sits outside the app shell. */}
+        {/* Live video rooms use the whole screen, so they sit outside the app shell. */}
         <Route path="/classes/:id/room" element={<ClassRoom />} />
+        <Route path="/requests/:id/room" element={<RequestRoom />} />
         <Route element={<AppShell />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/discover" element={<Discover />} />
           <Route path="/students/:id" element={<StudentProfile />} />
           <Route path="/skills" element={<MySkills />} />
           <Route path="/requests" element={<Requests />} />
+          <Route path="/requests/:id/chat" element={<RequestChat />} />
           <Route path="/classes" element={<Classes />} />
           <Route path="/teaching" element={<Teaching />} />
           <Route path="/instructor" element={<InstructorApply />} />

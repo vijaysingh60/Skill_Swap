@@ -267,7 +267,16 @@ export default function Dashboard() {
                         {other.name}
                       </Link>
                       <p className="flex flex-wrap items-center gap-x-1 text-xs text-slate-600">
-                        You teach {iTeach} <ArrowLeftRight size={12} aria-hidden /> {firstName(other.name)} teaches {theyTeach}
+                        {/* Either side's skill can be blank: a one-directional request offers nothing back. */}
+                        {iTeach && theyTeach ? (
+                          <>
+                            You teach {iTeach} <ArrowLeftRight size={12} aria-hidden /> {firstName(other.name)} teaches {theyTeach}
+                          </>
+                        ) : theyTeach ? (
+                          <>{firstName(other.name)} is teaching you {theyTeach}</>
+                        ) : (
+                          <>You’re teaching {firstName(other.name)} {iTeach}</>
+                        )}
                       </p>
                       {other.email && (
                         <a href={`mailto:${other.email}`} className="break-all text-xs font-medium text-brand-700 hover:underline">

@@ -10,6 +10,8 @@ interface AuthContextValue {
   register: (input: RegisterInput) => Promise<void>;
   logout: () => void;
   setUser: (user: CurrentUser) => void;
+  /** Stores a token+user pair already returned by the server (e.g. after verifying an email), without a separate login call. */
+  applySession: (token: string, user: CurrentUser) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -47,6 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       logout,
       setUser,
+      applySession: (token, nextUser) => {
+        setToken(token);
+        setUser(nextUser);
+      },
       login: async (email, password) => {
         const res = await api.login(email, password);
         setToken(res.token);

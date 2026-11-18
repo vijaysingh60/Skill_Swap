@@ -29,6 +29,7 @@ export function privateUser(user) {
   return {
     ...publicUser(user),
     email: user.email,
+    emailVerified: user.emailVerified ?? false,
     role: user.role ?? 'user',
     mode: effectiveMode(user),
     instructor: {
@@ -91,8 +92,13 @@ export function exchangeRequest(doc) {
 /**
  * A class as seen by `viewerId`. Expects `instructor` populated. Only the host gets the attendee
  * list (pass `attendees` populated); everyone else just sees counts.
+ *
+ * `paidSessionIds` (a Set of session id strings, or a boolean shortcut) tells the dto whether the
+ * viewer has already paid for this class, for the "Pay & Join" vs "Join" button on the client. It's
+ * passed in rather than looked up here because this function stays a plain, synchronous mapper —
+ * callers batch the one Payment query they need for a whole list once, see sessions.controller.js.
  */
-export function sessionDto(session, viewerId) {
+export function sessionDto(session, viewerId, paidSessionIds = new Set()) {
   const attendeeIds = session.attendees.map(idOf);
   const host = session.instructor;
   const populatedAttendees = session.attendees.length > 0 && typeof session.attendees[0] === 'object' && 'name' in session.attendees[0];
@@ -116,6 +122,8 @@ export function sessionDto(session, viewerId) {
     capacity: session.capacity,
     attendeeCount: attendeeIds.length,
     spotsLeft: Math.max(0, session.capacity - attendeeIds.length),
+    price: session.price ?? 0,
+    paidByMe: session.price > 0 && (paidSessionIds instanceof Set ? paidSessionIds.has(String(session._id)) : Boolean(paidSessionIds)),
     status: session.status,
     phase: phaseOf(session),
     roomOpensAt: roomOpensAt(session),

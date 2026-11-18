@@ -9,7 +9,7 @@ import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { focusFirstInvalid } from '../lib/dom';
-import { hasErrors, validateRegisterForm, type FieldErrors } from '../lib/validation';
+import { ALLOWED_EMAIL_DOMAINS, hasErrors, validateRegisterForm, type FieldErrors } from '../lib/validation';
 
 export default function Register() {
   usePageTitle('Create your account');
@@ -37,7 +37,7 @@ export default function Register() {
     setSubmitting(true);
     try {
       await register({ ...form, name: form.name.trim(), email: form.email.trim(), university: form.university.trim(), department: form.department.trim() });
-      toast.success('Account created. Welcome to Skill Swap!');
+      toast.success('Account created! We sent a verification link to your email — verify it so you can log back in later.');
     } catch (err) {
       if (err instanceof ApiError) {
         setErrors(err.fields);
@@ -58,7 +58,7 @@ export default function Register() {
       <form ref={formRef} onSubmit={submit} className="mt-6 space-y-4" noValidate>
         {formError && <Alert variant="error">{formError}</Alert>}
         <TextField id="name" label="Full name" autoComplete="name" value={form.name} onChange={set('name')} error={errors.name} />
-        <TextField id="email" label="Email" type="email" autoComplete="email" value={form.email} onChange={set('email')} error={errors.email} />
+        <TextField id="email" label="Email" type="email" autoComplete="email" placeholder={`you@${ALLOWED_EMAIL_DOMAINS[0]}`} value={form.email} onChange={set('email')} error={errors.email} hint="Use your university email — this is how we check you're a student." />
         <PasswordField id="password" label="Password" autoComplete="new-password" hint="At least 8 characters." value={form.password} onChange={set('password')} error={errors.password} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <TextField id="university" label="University" value={form.university} onChange={set('university')} error={errors.university} />

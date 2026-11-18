@@ -31,24 +31,15 @@ export function RequestForm({ student, me, onSent }: Props) {
   if (student.skillsOffered.length === 0) {
     return <Alert variant="info">{student.name} hasn’t listed any skills to teach yet, so there is nothing to request.</Alert>;
   }
-  if (me.skillsOffered.length === 0) {
-    return (
-      <Alert variant="info">
-        You need to offer something in return.{' '}
-        <Link to="/skills" className="font-medium underline underline-offset-2">
-          Add a skill you can teach
-        </Link>{' '}
-        first.
-      </Alert>
-    );
-  }
+  // A student with nothing to teach yet can still ask to learn — it's sent as a one-directional
+  // request instead of a swap. Trading a skill back is encouraged (pre-selected below) but optional.
+  const canOffer = me.skillsOffered.length > 0;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (submitting) return;
     const found: Record<string, string> = {};
     if (!skillWanted) found.skillWanted = 'Choose the skill you want to learn.';
-    if (!skillOffered) found.skillOffered = 'Choose the skill you can offer in exchange.';
     if (message.length > MESSAGE_MAX) found.message = `Message must be at most ${MESSAGE_MAX} characters.`;
     setErrors(found);
     setFormError(null);
@@ -82,13 +73,24 @@ export function RequestForm({ student, me, onSent }: Props) {
           </option>
         ))}
       </SelectField>
-      <SelectField id="skillOffered" label="I can teach in exchange" error={errors.skillOffered} value={skillOffered} onChange={(e) => setSkillOffered(e.target.value)}>
-        {me.skillsOffered.map((s) => (
-          <option key={s.name} value={s.name}>
-            {s.name}
-          </option>
-        ))}
-      </SelectField>
+      {canOffer ? (
+        <SelectField id="skillOffered" label="I can teach in exchange (optional)" error={errors.skillOffered} value={skillOffered} onChange={(e) => setSkillOffered(e.target.value)}>
+          <option value="">Nothing — just ask to learn</option>
+          {me.skillsOffered.map((s) => (
+            <option key={s.name} value={s.name}>
+              {s.name}
+            </option>
+          ))}
+        </SelectField>
+      ) : (
+        <Alert variant="info">
+          You don’t have any skills to offer yet, so this will be sent as a plain request to learn.{' '}
+          <Link to="/skills" className="font-medium underline underline-offset-2">
+            Add a skill
+          </Link>{' '}
+          later if you’d like to offer one in return.
+        </Alert>
+      )}
       <TextAreaField
         id="message"
         label="Message (optional)"

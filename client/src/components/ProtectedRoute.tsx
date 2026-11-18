@@ -1,10 +1,9 @@
 import { LoaderCircle } from 'lucide-react';
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function ProtectedRoute() {
   const { user, loading } = useAuth();
-  const location = useLocation();
 
   if (loading) {
     return (
@@ -14,6 +13,8 @@ export default function ProtectedRoute() {
       </div>
     );
   }
-  if (!user) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
+  // No redirect state is attached here on purpose: it would stick to this
+  // browser history entry, not to the person who gets redirected. See Login.tsx.
+  if (!user) return <Navigate to="/login" replace />;
   return <Outlet />;
 }

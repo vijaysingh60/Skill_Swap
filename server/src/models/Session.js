@@ -14,6 +14,8 @@ const sessionSchema = new mongoose.Schema(
     // Stored (not derived) so "is it over yet?" is a simple indexed query.
     endsAt: { type: Date, required: true, index: true },
     capacity: { type: Number, required: true, min: 1, max: 100 },
+    // Rupees. 0 = free, the default — most classes are. See models/Payment.js for how paying works.
+    price: { type: Number, min: 0, max: 10_000, default: 0 },
     attendees: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     status: { type: String, enum: SESSION_STATUSES, default: 'scheduled' },
     // Unguessable room name. Only revealed, with a signed token, to the host and joined students.

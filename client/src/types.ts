@@ -43,6 +43,7 @@ export interface InstructorInfo {
 
 export interface CurrentUser extends Student {
   email: string;
+  emailVerified: boolean;
   role: 'user' | 'admin';
   /** Which view the user is in. Always "student" unless they are a verified instructor. */
   mode: Mode;
@@ -85,6 +86,10 @@ export interface ClassSession {
   capacity: number;
   attendeeCount: number;
   spotsLeft: number;
+  /** In rupees. 0 = free, which is most classes. */
+  price: number;
+  /** Whether the current viewer has already paid (only meaningful when price > 0). */
+  paidByMe: boolean;
   status: 'scheduled' | 'cancelled';
   phase: SessionPhase;
   roomOpensAt: string;
@@ -106,6 +111,16 @@ export interface VideoRoom {
   moderator: boolean;
   title: string;
   closesAt: string;
+}
+
+/** One message in the chat between the two students of an accepted exchange request. */
+export interface ChatMessage {
+  id: string;
+  requestId: string;
+  senderId: string;
+  senderName: string;
+  text: string;
+  createdAt: string;
 }
 
 export interface Applicant {

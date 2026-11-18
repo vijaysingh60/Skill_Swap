@@ -1,8 +1,18 @@
+import { config } from '../config/index.js';
 import { HttpError } from './httpError.js';
 import { SKILL_LEVELS } from '../models/User.js';
 import { normalizeSkill } from './skills.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// True if the email's domain is the allowed one, or a subdomain of it (e.g. "cs.uohyd.ac.in").
+// An empty allow-list (ALLOWED_EMAIL_DOMAINS="") means any domain is accepted.
+export function emailDomainAllowed(email, domains = config.allowedEmailDomains) {
+  if (domains.length === 0) return true;
+  const domain = email.split('@')[1]?.toLowerCase();
+  if (!domain) return false;
+  return domains.some((allowed) => domain === allowed || domain.endsWith(`.${allowed}`));
+}
 export const OBJECT_ID_RE = /^[a-f0-9]{24}$/i;
 const MAX_SKILLS = 15;
 
@@ -61,6 +71,9 @@ export function validateRegister(body = {}) {
 
   checkLength(errors, 'name', name, 'Name', { max: 80 });
   if (!EMAIL_RE.test(email) || email.length > 254) errors.email = 'Enter a valid email address.';
+  else if (!emailDomainAllowed(email)) {
+    errors.email = `Please use your university email address (e.g. you@${config.allowedEmailDomains[0]}).`;
+  }
   checkLength(errors, 'university', university, 'University', { max: 120 });
   checkLength(errors, 'department', department, 'Department', { max: 120 });
   if (password.length < 8) errors.password = 'Password must be at least 8 characters.';
@@ -77,6 +90,16 @@ export function validateLogin(body = {}) {
   if (!email) errors.email = 'Email is required.';
   if (!password) errors.password = 'Password is required.';
   return finish(errors, { email, password });
+}
+
+export function validateVerifyToken(body = {}) {
+  const token = text(body.token);
+  return finish(token ? {} : { token: 'Missing verification token.' }, { token });
+}
+
+export function validateResendVerification(body = {}) {
+  const email = text(body.email).toLowerCase();
+  return finish(EMAIL_RE.test(email) ? {} : { email: 'Enter a valid email address.' }, { email });
 }
 
 // Only fields present in the body are validated and updated.
@@ -112,7 +135,8 @@ export function validateNewRequest(body = {}) {
 
   if (!OBJECT_ID_RE.test(recipientId)) errors.recipientId = 'Choose a valid student.';
   if (!skillWanted) errors.skillWanted = 'Choose the skill you want to learn.';
-  if (!skillOffered) errors.skillOffered = 'Choose the skill you can offer in exchange.';
+  // skillOffered is optional: a student can ask to learn something without offering a skill back.
+  if (skillOffered.length > 40) errors.skillOffered = 'Skill must be at most 40 characters.';
   if (message.length > 500) errors.message = 'Message must be at most 500 characters.';
 
   return finish(errors, { recipientId, skillWanted, skillOffered, message });
@@ -171,6 +195,7 @@ export function validateNewSession(body = {}, now = new Date(), { minLeadMinutes
   const startsAt = new Date(typeof body.startsAt === 'string' ? body.startsAt : NaN);
   const durationMinutes = wholeNumber(body.durationMinutes, 60);
   const capacity = wholeNumber(body.capacity, 20);
+  const price = wholeNumber(body.price, 0);
 
   const titleError = lengthMessage('Title', title, 3, 80);
   if (titleError) errors.title = titleError;
@@ -184,8 +209,9 @@ export function validateNewSession(body = {}, now = new Date(), { minLeadMinutes
 
   if (!(durationMinutes >= 15 && durationMinutes <= 240)) errors.durationMinutes = 'Duration must be between 15 and 240 minutes.';
   if (!(capacity >= 1 && capacity <= 100)) errors.capacity = 'Capacity must be between 1 and 100 students.';
+  if (!(price >= 0 && price <= 10_000)) errors.price = 'Price must be between ₹0 (free) and ₹10,000.';
 
-  return finish(errors, { title, skill, description, startsAt, durationMinutes, capacity });
+  return finish(errors, { title, skill, description, startsAt, durationMinutes, capacity, price });
 }
 
 const minLead = (minutes) => minutes * 60_000;

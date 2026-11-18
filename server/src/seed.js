@@ -7,6 +7,7 @@ import mongoose from 'mongoose';
 import { connectDb } from './config/db.js';
 import { config } from './config/index.js';
 import { ExchangeRequest } from './models/ExchangeRequest.js';
+import { Payment } from './models/Payment.js';
 import { Session } from './models/Session.js';
 import { User } from './models/User.js';
 import { normalizeSkill } from './utils/skills.js';
@@ -272,10 +273,10 @@ const at = (days, hour) => {
 };
 const classes = [
   ['Zoya', 'Public speaking for beginners', 'Public Speaking', 'Conquer stage fright with simple breathing, structure and delivery drills. Bring a 1-minute topic to practise.', 10, 60, 20, ['Aarav', 'Sneha', 'Mohammed', 'Vikram']], // opens right away
-  ['Rhea', 'UI design basics with Figma', 'UI Design', 'Frames, auto layout and a simple design system. We will build a login screen together.', at(1, 18), 90, 15, ['Aarav', 'Arjun', 'Harini']],
+  ['Rhea', 'UI design basics with Figma', 'UI Design', 'Frames, auto layout and a simple design system. We will build a login screen together.', at(1, 18), 90, 15, ['Aarav', 'Arjun', 'Harini'], 'scheduled', 299], // paid: ₹299
   ['Aarav', 'Python from zero: variables to loops', 'Python', 'No experience needed. We cover variables, conditions and loops with small exercises.', at(2, 17), 60, 25, ['Joseph', 'Lakshmi', 'Sai', 'Ananya']],
   ['Kavya', 'Intro to Madhubani painting', 'Madhubani Painting', 'Learn the line work and motifs of Madhubani art. Paper and black ink are enough to start.', at(3, 16), 90, 3, ['Aarav', 'Divya', 'Priyanka']], // full
-  ['Imran', 'Video editing in an hour', 'Video Editing', 'Cut, pace and export a short video. Any editor works; we will use free software.', at(4, 19), 60, 30, ['Zoya', 'Priyanka']],
+  ['Imran', 'Video editing in an hour', 'Video Editing', 'Cut, pace and export a short video. Any editor works; we will use free software.', at(4, 19), 60, 30, ['Zoya', 'Priyanka'], 'scheduled', 199], // paid: ₹199
   ['Aarav', 'Data structures crash course', 'Data Structures', 'Arrays, stacks, queues and the thinking behind them, with interview-style problems.', at(5, 18), 90, 20, []],
   ['Zoya', 'Slam poetry workshop', 'Creative Writing', 'Write and perform a short piece. Great for finding your voice.', at(-1, 17), 60, 15, ['Aarav', 'Ananya']], // already ended
   ['Imran', 'Podcasting basics', 'Podcasting', 'Mic setup, recording and editing for a first episode.', at(6, 17), 60, 20, ['Zoya'], 'cancelled'],
@@ -316,7 +317,7 @@ if (config.nodeEnv === 'production') {
   process.exit(1);
 }
 
-await Promise.all([User.deleteMany({}), ExchangeRequest.deleteMany({}), Session.deleteMany({})]);
+await Promise.all([User.deleteMany({}), ExchangeRequest.deleteMany({}), Session.deleteMany({}), Payment.deleteMany({})]);
 
 const passwordHash = await bcrypt.hash(PASSWORD, 10);
 const users = await User.insertMany([
@@ -328,6 +329,8 @@ const users = await User.insertMany([
       email: emailOf({ name: s.name }),
       university: UNIVERSITY,
       passwordHash,
+      // Seeded accounts skip the usual email-verification step, so the demo logins just work.
+      emailVerified: true,
       skillsOffered: offered,
       skillsWanted: wanted,
       ...(verification && {
@@ -341,7 +344,7 @@ const users = await User.insertMany([
       }),
     };
   }),
-  { ...admin, university: UNIVERSITY, passwordHash, role: 'admin' },
+  { ...admin, university: UNIVERSITY, passwordHash, emailVerified: true, role: 'admin' },
 ]);
 const byFirstName = Object.fromEntries(users.map((u) => [firstName(u), u]));
 
@@ -357,7 +360,7 @@ await ExchangeRequest.insertMany(
 );
 
 const minutes = (n) => new Date(Date.now() + n * 60_000);
-const sessionDocs = classes.map(([host, title, skill, description, when, durationMinutes, capacity, attendees, status = 'scheduled']) => {
+const sessionDocs = classes.map(([host, title, skill, description, when, durationMinutes, capacity, attendees, status = 'scheduled', price = 0]) => {
   const startsAt = typeof when === 'number' ? minutes(when) : when;
   return {
     instructor: byFirstName[host]._id,
@@ -368,12 +371,18 @@ const sessionDocs = classes.map(([host, title, skill, description, when, duratio
     durationMinutes,
     endsAt: new Date(startsAt.getTime() + durationMinutes * 60_000),
     capacity,
+    price, // most classes are free (price 0); a couple are seeded paid to demo that flow
     attendees: attendees.map((name) => byFirstName[name]._id),
     status,
     roomId: `skillswap-${crypto.randomBytes(12).toString('hex')}`,
   };
 });
-await Session.insertMany(sessionDocs);
+const insertedSessions = await Session.insertMany(sessionDocs);
+
+// Give every existing attendee of a paid class a matching (mock) receipt, so the seeded data is
+// consistent with what paying for real through the app would leave behind.
+const seededPayments = insertedSessions.flatMap((s) => (s.price > 0 ? s.attendees.map((student) => ({ student, session: s._id, amount: s.price })) : []));
+if (seededPayments.length > 0) await Payment.insertMany(seededPayments);
 
 console.log(`Seeded ${users.length - 1} students, 1 admin, ${requests.length} exchange requests and ${sessionDocs.length} classes into ${mongoose.connection.name}.`);
 console.log(`Log in as ${DEMO_EMAIL} (a verified instructor), admin@example.com (admin), or any student, e.g. lakshmi.prasanna@example.com. Password: "${PASSWORD}".`);

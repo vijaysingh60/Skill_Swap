@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Check, Mail, X } from 'lucide-react';
+import { ArrowLeftRight, Check, Mail, MessageCircle, Video, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
@@ -7,7 +7,7 @@ import type { ExchangeRequest, RequestStatus } from '../types';
 import { Alert } from './ui/Alert';
 import { Avatar } from './ui/Avatar';
 import { Badge, type BadgeTone } from './ui/Badge';
-import { Button } from './ui/Button';
+import { Button, LinkButton } from './ui/Button';
 import { ConfirmDialog } from './ui/Dialog';
 import { useToast } from './ui/Toast';
 
@@ -75,28 +75,46 @@ export function RequestCard({ request, direction, onUpdated }: Props) {
         <StatusBadge status={request.status} />
       </div>
 
-      <dl className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-lg bg-slate-50 px-4 py-3">
-        <div className="min-w-0">
+      {request.skillOffered ? (
+        <dl className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-lg bg-slate-50 px-4 py-3">
+          <div className="min-w-0">
+            <dt className="text-xs text-slate-500">{incoming ? `${first} wants to learn` : 'You want to learn'}</dt>
+            <dd className="truncate font-medium text-slate-900">{request.skillWanted}</dd>
+          </div>
+          <ArrowLeftRight size={16} className="text-brand-600" aria-hidden />
+          <div className="min-w-0">
+            <dt className="text-xs text-slate-500">{incoming ? 'and offers' : 'and offer'}</dt>
+            <dd className="truncate font-medium text-slate-900">{request.skillOffered}</dd>
+          </div>
+        </dl>
+      ) : (
+        // No skill offered back: a plain, one-directional request to learn.
+        <dl className="mt-4 rounded-lg bg-slate-50 px-4 py-3">
           <dt className="text-xs text-slate-500">{incoming ? `${first} wants to learn` : 'You want to learn'}</dt>
           <dd className="truncate font-medium text-slate-900">{request.skillWanted}</dd>
-        </div>
-        <ArrowLeftRight size={16} className="text-brand-600" aria-hidden />
-        <div className="min-w-0">
-          <dt className="text-xs text-slate-500">{incoming ? 'and offers' : 'and offer'}</dt>
-          <dd className="truncate font-medium text-slate-900">{request.skillOffered}</dd>
-        </div>
-      </dl>
+        </dl>
+      )}
 
       {request.message && <blockquote className="mt-3 border-l-2 border-brand-200 pl-3 text-sm text-slate-600">“{request.message}”</blockquote>}
 
       {request.status === 'accepted' && other.email && (
-        <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
-          <Mail size={16} aria-hidden />
-          <span>Get in touch to plan your swap:</span>
-          <a href={`mailto:${other.email}`} className="break-all font-medium underline underline-offset-2">
-            {other.email}
-          </a>
-        </p>
+        <>
+          <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-emerald-50 px-3 py-2.5 text-sm text-emerald-900">
+            <Mail size={16} aria-hidden />
+            <span>Get in touch to plan your session:</span>
+            <a href={`mailto:${other.email}`} className="break-all font-medium underline underline-offset-2">
+              {other.email}
+            </a>
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <LinkButton to={`/requests/${request.id}/chat`} state={{ other: { id: other.id, name: other.name } }} size="sm" icon={MessageCircle}>
+              Message
+            </LinkButton>
+            <LinkButton to={`/requests/${request.id}/room`} state={{ other: { id: other.id, name: other.name } }} variant="secondary" size="sm" icon={Video}>
+              Video call
+            </LinkButton>
+          </div>
+        </>
       )}
 
       {request.status === 'pending' && !incoming && <p className="mt-4 text-xs text-slate-500">Waiting for {first} to respond.</p>}

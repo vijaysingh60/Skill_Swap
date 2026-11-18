@@ -14,6 +14,8 @@ router.get('/health', (_req, res) => res.json({ status: 'ok' }));
 router.post('/auth/register', auth.register);
 router.post('/auth/login', auth.login);
 router.get('/auth/me', requireAuth, auth.me);
+router.post('/auth/verify-email', auth.verifyEmail);
+router.post('/auth/resend-verification', auth.resendVerification);
 
 router.put('/users/me', requireAuth, users.updateMe);
 router.put('/users/me/mode', requireAuth, instructor.setMode);
@@ -24,6 +26,8 @@ router.get('/users/:id', requireAuth, users.getStudent);
 router.post('/requests', requireAuth, requests.createRequest);
 router.get('/requests', requireAuth, requests.listRequests);
 router.patch('/requests/:id', requireAuth, requests.respondToRequest);
+router.get('/requests/:id/messages', requireAuth, requests.getRequestMessages);
+router.get('/requests/:id/room', requireAuth, requests.getRequestRoom);
 
 router.post('/instructor/apply', requireAuth, instructor.apply);
 
@@ -33,6 +37,7 @@ router.patch('/admin/instructors/:id', requireAuth, requireAdmin, admin.decide);
 router.get('/sessions', requireAuth, sessions.listSessions);
 router.post('/sessions', requireAuth, requireVerifiedInstructor, sessions.createSession);
 router.get('/sessions/:id', requireAuth, sessions.getSession);
+router.post('/sessions/:id/pay', requireAuth, sessions.payForSession);
 router.post('/sessions/:id/join', requireAuth, sessions.joinSession);
 router.delete('/sessions/:id/join', requireAuth, sessions.leaveSession);
 router.post('/sessions/:id/cancel', requireAuth, sessions.cancelSession);

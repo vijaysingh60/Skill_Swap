@@ -1,14 +1,7 @@
-import type { Applicant, ChatMessage, ClassSession, CurrentUser, ExchangeRequest, InstructorStatus, Mode, RequestStatus, Skill, Student, VideoRoom } from '../types';
+import type { Applicant, ClassSession, CurrentUser, InstructorStatus, Mode, Skill, Student, VideoRoom } from '../types';
 
 const BASE_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? '/api';
 const TOKEN_KEY = 'skillswap_token';
-
-// The real-time chat server (Socket.IO) lives at the API's origin, not under /api. In dev, BASE_URL
-// is the relative "/api", which the Vite dev server proxies — including websockets — so the socket
-// client is left to connect to the current page's own origin (undefined here means exactly that).
-// In production, BASE_URL is an absolute "https://api.example.com/api"; stripping the "/api" gives
-// the origin to connect to directly.
-export const SOCKET_URL = BASE_URL.startsWith('/') ? undefined : BASE_URL.replace(/\/api\/?$/, '');
 
 export class ApiError extends Error {
   status: number;
@@ -89,13 +82,6 @@ export interface ProfileInput {
   skillsWanted: Skill[];
 }
 
-export interface NewRequestInput {
-  recipientId: string;
-  skillWanted: string;
-  skillOffered: string;
-  message: string;
-}
-
 export interface NewSessionInput {
   title: string;
   skill: string;
@@ -120,21 +106,12 @@ export const api = {
   register: (input: RegisterInput) => request<{ token: string; user: CurrentUser }>('POST', '/auth/register', input),
   login: (email: string, password: string) => request<{ token: string; user: CurrentUser }>('POST', '/auth/login', { email, password }),
   me: () => request<{ user: CurrentUser }>('GET', '/auth/me'),
-  verifyEmail: (token: string) => request<{ token: string; user: CurrentUser }>('POST', '/auth/verify-email', { token }),
-  resendVerification: (email: string) => request<{ message: string }>('POST', '/auth/resend-verification', { email }),
   updateProfile: (input: Partial<ProfileInput>) => request<{ user: CurrentUser }>('PUT', '/users/me', input),
 
   listStudents: (search: string, limit: number, sort: 'match' | 'name' = 'match') =>
     request<{ students: Student[]; total: number }>('GET', `/users?search=${encodeURIComponent(search)}&limit=${limit}&sort=${sort}`),
   recommended: (limit = 6) => request<{ students: Student[] }>('GET', `/users/recommended?limit=${limit}`),
   getStudent: (id: string) => request<{ student: Student }>('GET', `/users/${encodeURIComponent(id)}`),
-
-  createRequest: (input: NewRequestInput) => request<{ request: ExchangeRequest }>('POST', '/requests', input),
-  listRequests: () => request<{ incoming: ExchangeRequest[]; outgoing: ExchangeRequest[] }>('GET', '/requests'),
-  respondToRequest: (id: string, status: Exclude<RequestStatus, 'pending'>) =>
-    request<{ request: ExchangeRequest }>('PATCH', `/requests/${encodeURIComponent(id)}`, { status }),
-  getRequestMessages: (id: string) => request<{ other: { id: string; name: string }; messages: ChatMessage[] }>('GET', `/requests/${encodeURIComponent(id)}/messages`),
-  getRequestRoom: (id: string) => request<{ room: VideoRoom }>('GET', `/requests/${encodeURIComponent(id)}/room`),
 
   applyToTeach: (headline: string, experience: string) => request<{ user: CurrentUser }>('POST', '/instructor/apply', { headline, experience }),
   setMode: (mode: Mode) => request<{ user: CurrentUser }>('PUT', '/users/me/mode', { mode }),

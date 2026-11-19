@@ -68,7 +68,7 @@ export default function Discover() {
 
   return (
     <div>
-      <PageHeader title="Discover students" subtitle="Find someone to swap skills with. Search by name or skill." />
+      <PageHeader title="Discover students" subtitle="Browse students by name or skill." />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1 sm:max-w-xl">

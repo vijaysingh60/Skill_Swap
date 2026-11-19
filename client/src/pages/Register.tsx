@@ -37,7 +37,7 @@ export default function Register() {
     setSubmitting(true);
     try {
       await register({ ...form, name: form.name.trim(), email: form.email.trim(), university: form.university.trim(), department: form.department.trim() });
-      toast.success('Account created! We sent a verification link to your email — verify it so you can log back in later.');
+      toast.success('Account created! Welcome to Skill Swap.');
     } catch (err) {
       if (err instanceof ApiError) {
         setErrors(err.fields);

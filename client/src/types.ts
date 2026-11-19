@@ -43,34 +43,10 @@ export interface InstructorInfo {
 
 export interface CurrentUser extends Student {
   email: string;
-  emailVerified: boolean;
   role: 'user' | 'admin';
   /** Which view the user is in. Always "student" unless they are a verified instructor. */
   mode: Mode;
   instructor: InstructorInfo;
-}
-
-export type RequestStatus = 'pending' | 'accepted' | 'rejected';
-
-export interface RequestParty {
-  id: string;
-  name: string;
-  university: string;
-  department: string;
-  /** Only present once the request has been accepted. */
-  email?: string;
-}
-
-export interface ExchangeRequest {
-  id: string;
-  status: RequestStatus;
-  skillWanted: string;
-  skillOffered: string;
-  message: string;
-  createdAt: string;
-  updatedAt: string;
-  requester: RequestParty;
-  recipient: RequestParty;
 }
 
 export type SessionPhase = 'upcoming' | 'open' | 'ended' | 'cancelled';
@@ -111,16 +87,6 @@ export interface VideoRoom {
   moderator: boolean;
   title: string;
   closesAt: string;
-}
-
-/** One message in the chat between the two students of an accepted exchange request. */
-export interface ChatMessage {
-  id: string;
-  requestId: string;
-  senderId: string;
-  senderName: string;
-  text: string;
-  createdAt: string;
 }
 
 export interface Applicant {

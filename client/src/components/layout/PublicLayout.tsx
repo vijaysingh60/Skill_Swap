@@ -60,7 +60,7 @@ function Footer() {
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 py-10 sm:px-6 md:grid-cols-[2fr_1fr_1fr]">
         <div className="max-w-xs">
           <Logo />
-          <p className="mt-3 text-sm text-slate-600">A skill exchange for University of Hyderabad students. Teach what you know, learn what you don’t.</p>
+          <p className="mt-3 text-sm text-slate-600">Live classes from verified student instructors at the University of Hyderabad. Teach what you know, learn what you don’t.</p>
         </div>
         <div>
           <h2 className="text-sm">Explore</h2>

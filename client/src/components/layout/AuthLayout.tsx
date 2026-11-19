@@ -1,36 +1,40 @@
-import { ArrowLeftRight, GraduationCap, Handshake, Sparkles } from 'lucide-react';
 import { Outlet } from 'react-router-dom';
 import { Logo } from './Logo';
 
-const points = [
-  { icon: GraduationCap, text: 'List what you can teach and what you want to learn.' },
-  { icon: Sparkles, text: 'Get matched with students whose skills complement yours.' },
-  { icon: Handshake, text: 'Send a request, swap skills, and learn together.' },
-];
+const steps = [
+  ['List', 'What you can teach, and what you want to learn.'],
+  ['Match', "We surface students who teach what you're after."],
+  ['Learn', 'Book a live class from a verified student instructor and start learning.'],
+] as const;
 
-/** Split screen for login and registration: brand panel on large screens, form always. */
+/** Split screen for login and registration: a quiet editorial panel, form always visible. */
 export default function AuthLayout() {
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[5fr_6fr]">
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-brand-700 p-12 text-white lg:flex">
-        <div aria-hidden className="absolute -right-24 -top-24 h-96 w-96 rounded-full border border-white/10" />
-        <div aria-hidden className="absolute -right-8 -top-8 h-64 w-64 rounded-full border border-white/10" />
+      <aside className="hidden flex-col justify-between bg-slate-900 p-12 text-white lg:flex">
         <Logo onDark />
-        <div className="relative">
-          <ArrowLeftRight size={28} className="mb-6 text-brand-300" aria-hidden />
-          <h2 className="max-w-sm text-3xl font-semibold leading-tight tracking-tight text-white">Trade what you know for what you want to learn.</h2>
-          <ul className="mt-8 space-y-4">
-            {points.map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-start gap-3 text-sm text-brand-100">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10">
-                  <Icon size={16} aria-hidden />
-                </span>
-                <span className="pt-1.5">{text}</span>
-              </li>
-            ))}
-          </ul>
+
+        <div>
+          <p className="text-xs font-medium uppercase tracking-widest text-slate-400">University of Hyderabad</p>
+          <h2 className="mt-4 max-w-sm text-[2.25rem] font-semibold leading-[1.15] tracking-tight text-white">
+            Learn from fellow students who know what you want to know.
+          </h2>
+          <p className="mt-5 max-w-sm text-sm leading-relaxed text-slate-400">
+            No fees, no subscriptions — just students teaching students, one skill at a time.
+          </p>
         </div>
-        <p className="text-xs text-brand-200">Made for University of Hyderabad students.</p>
+
+        <ol className="space-y-5 border-t border-white/10 pt-6">
+          {steps.map(([title, text], i) => (
+            <li key={title} className="flex gap-4">
+              <span className="font-mono text-xs text-slate-500">0{i + 1}</span>
+              <div>
+                <p className="text-sm font-medium text-white">{title}</p>
+                <p className="mt-0.5 text-sm text-slate-400">{text}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
       </aside>
 
       <div className="flex flex-col">

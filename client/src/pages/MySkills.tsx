@@ -66,11 +66,11 @@ export default function MySkills() {
         <SkillEditor
           id="offered"
           title="Skills I can teach"
-          description="Be honest about your level. Other students pick one of these when they offer to swap with you."
+          description="Be honest about your level. Other students see this when deciding whether you can help them."
           skills={offered}
           onChange={setOffered}
           placeholder="e.g. Python, Guitar, Statistics"
-          emptyText="Nothing here yet. Add at least one skill so others can request a swap with you."
+          emptyText="Nothing here yet. Add at least one skill so other students can find you."
           error={errors.skillsOffered}
         />
         <SkillEditor

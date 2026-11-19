@@ -29,7 +29,7 @@ export function StudentCardSkeleton() {
   );
 }
 
-export function RequestCardSkeleton() {
+export function ListRowSkeleton() {
   return (
     <div className="card space-y-4 p-5" aria-hidden>
       <div className="flex items-center gap-3">
@@ -60,7 +60,7 @@ export function LoadingList({ count = 3, label = 'Loading…' }: { count?: numbe
   return (
     <div role="status" aria-label={label} className="space-y-4">
       {Array.from({ length: count }, (_, i) => (
-        <RequestCardSkeleton key={i} />
+        <ListRowSkeleton key={i} />
       ))}
     </div>
   );

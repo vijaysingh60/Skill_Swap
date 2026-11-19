@@ -29,7 +29,6 @@ export function privateUser(user) {
   return {
     ...publicUser(user),
     email: user.email,
-    emailVerified: user.emailVerified ?? false,
     role: user.role ?? 'user',
     mode: effectiveMode(user),
     instructor: {
@@ -59,33 +58,6 @@ export function applicantForAdmin(user) {
     appliedAt: i.appliedAt ?? null,
     reviewedAt: i.reviewedAt ?? null,
     reviewNote: i.reviewNote ?? '',
-  };
-}
-
-// A student as shown inside an exchange request. The email is only shared
-// once a request has been accepted, so the two students can get in touch.
-function requestParty(user, status) {
-  return {
-    id: idOf(user),
-    name: user.name,
-    university: user.university,
-    department: user.department,
-    ...(status === 'accepted' ? { email: user.email } : {}),
-  };
-}
-
-// Expects requester and recipient to be populated.
-export function exchangeRequest(doc) {
-  return {
-    id: idOf(doc),
-    status: doc.status,
-    skillWanted: doc.skillWanted,
-    skillOffered: doc.skillOffered,
-    message: doc.message || '',
-    createdAt: doc.createdAt,
-    updatedAt: doc.updatedAt,
-    requester: requestParty(doc.requester, doc.status),
-    recipient: requestParty(doc.recipient, doc.status),
   };
 }
 

@@ -32,7 +32,7 @@ export function signRoomToken({ user, roomId, moderator, expiresAt }) {
       nbf: now - 10,
       exp: Math.floor(expiresAt.getTime() / 1000),
       context: {
-        // No email: students' emails stay private until a swap is accepted.
+        // No email: the room only needs a name and moderator flag.
         user: { id: String(user._id), name: user.name, moderator: moderator ? 'true' : 'false' },
         features: { livestreaming: false, 'outbound-call': false, transcription: false, recording: false },
         room: { regex: false },

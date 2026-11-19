@@ -1,25 +1,25 @@
-// Fills the database with sample students and exchange requests for demos.
-// All people below are fictional. Emails use example.com so they can never reach a real inbox.
-// WARNING: this deletes all existing users and exchange requests first.
+// Fills the database with sample students and classes for demos.
+// All people below are fictional. Emails use roll-number-style addresses on uohyd.ac.in.
+// WARNING: this deletes all existing users, classes and payments first.
 import bcrypt from 'bcrypt';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import { connectDb } from './config/db.js';
 import { config } from './config/index.js';
-import { ExchangeRequest } from './models/ExchangeRequest.js';
 import { Payment } from './models/Payment.js';
 import { Session } from './models/Session.js';
 import { User } from './models/User.js';
-import { normalizeSkill } from './utils/skills.js';
 
 const PASSWORD = 'password123';
 const UNIVERSITY = 'University of Hyderabad';
-const DEMO_EMAIL = 'aarav.sharma@example.com';
+const EMAIL_DOMAIN = 'uohyd.ac.in';
+const ADMISSION_YEAR = '25';
+const DEMO_EMAIL = `${ADMISSION_YEAR}cs01@${EMAIL_DOMAIN}`;
 
 const [B, I, A] = ['beginner', 'intermediate', 'advanced'];
 const skill = (name, level) => ({ name, level });
 
-// Keyed by first name (unique below); email is first.last@example.com.
+// Keyed by first name (unique below); email is a roll number like "25cs01@uohyd.ac.in" (see emailOf below).
 const students = [
   {
     name: 'Aarav Sharma', department: 'Computer Science',
@@ -227,28 +227,6 @@ const students = [
   },
 ];
 
-// [requester, recipient, skill the requester wants to learn, skill they offer back, message, status]
-const requests = [
-  // Incoming to the demo user, Aarav
-  ['Joseph', 'Aarav', 'Python', 'Guitar', 'Hi Aarav! I can teach you guitar from scratch if you help me start with Python. Weekends work for me.'],
-  ['Lakshmi', 'Aarav', 'Python', 'Telugu', 'Namaste! I would love to learn Python, and I can teach you Telugu in return. Shall we meet at the library?'],
-  ['Karthik', 'Aarav', 'Python', 'Carnatic Vocals', 'I want to automate my microscope image analysis. Happy to teach Carnatic basics in exchange.'],
-  ['Zoya', 'Aarav', 'React', 'Public Speaking', 'I will help you with public speaking if you show me how to build a portfolio site.', 'accepted'],
-  ['Tenzin', 'Aarav', 'Python', 'Momo Cooking', 'Momos for Python? Fair deal I think.', 'rejected'],
-  // Sent by Aarav
-  ['Aarav', 'Navya', 'Telugu', 'Data Structures', 'Hi Navya, I moved from Lucknow and want to learn conversational Telugu. I can help with data structures.'],
-  ['Aarav', 'Devansh', 'Guitar', 'Python', ''],
-  ['Aarav', 'Rhea', 'UI Design', 'React', 'I would love to learn UI design from you. I can teach you React so you can ship your designs.', 'accepted'],
-  ['Aarav', 'Vikram', 'Public Speaking', 'Python', '', 'rejected'],
-  // Between other students, so every login has something to show
-  ['Harini', 'Mohammed', 'Hindi', 'Python', 'Salaam! Could you help me with everyday Hindi? I can teach you Python in return.'],
-  ['Sai', 'Tanmay', 'Public Speaking', 'Competitive Programming', 'I freeze during interviews. Could you coach me? I can teach problem solving.'],
-  ['Priyanka', 'Imran', 'Video Editing', 'Photography', 'I need to cut my fieldwork footage. I can help you with composition and lighting.', 'accepted'],
-  ['Rohan', 'Rishabh', 'Chess', 'Organic Chemistry', 'Sorry, my thesis deadline is close and I cannot take new students this month.', 'rejected'],
-  ['Fathima', 'Ishita', 'Academic Writing', 'Biostatistics', 'My first manuscript is due soon. Could you review my writing? I can teach you biostatistics.'],
-  ['Gurpreet', 'Joseph', 'Guitar', 'North Indian Cooking', 'Guitar lessons for a butter chicken lesson. Deal?', 'accepted'],
-];
-
 // Instructor verification states, keyed by first name. Everyone else is a plain student.
 const reviewed = (days) => new Date(Date.now() - days * 86_400_000);
 const instructors = {
@@ -262,7 +240,7 @@ const instructors = {
   Rohan: { status: 'rejected', headline: 'Organic chemistry tutor', experience: 'I enjoy organic chemistry.', reviewNote: 'Please add more detail about your teaching experience and reapply.' },
 };
 
-const admin = { name: 'Admin User', email: 'admin@example.com', department: 'Administration', bio: 'Reviews instructor applications.' };
+const admin = { name: 'Admin User', email: `admin@${EMAIL_DOMAIN}`, department: 'Administration', bio: 'Reviews instructor applications.' };
 
 // [host, title, skill, description, minutes from now (or { days, hour }), duration, capacity, attendees, status]
 const at = (days, hour) => {
@@ -282,22 +260,59 @@ const classes = [
   ['Imran', 'Podcasting basics', 'Podcasting', 'Mic setup, recording and editing for a first episode.', at(6, 17), 60, 20, ['Zoya'], 'cancelled'],
 ];
 
+// Short department codes used to build a roll-number-style email, e.g. "25cs01@uohyd.ac.in".
+const DEPT_CODES = {
+  'Computer Science': 'cs',
+  Physics: 'ph',
+  Chemistry: 'chem',
+  Biochemistry: 'bioc',
+  'Animal Biology': 'zool',
+  'Plant Sciences': 'bot',
+  Psychology: 'psy',
+  English: 'eng',
+  Telugu: 'tel',
+  Urdu: 'urdu',
+  Economics: 'eco',
+  'Political Science': 'pol',
+  Sociology: 'soc',
+  Anthropology: 'anth',
+  Linguistics: 'ling',
+  Mathematics: 'math',
+  Statistics: 'stat',
+  Communication: 'comm',
+  'Management Studies': 'mba',
+  Dance: 'dance',
+  'Theatre Arts': 'thtr',
+  Painting: 'paint',
+  Philosophy: 'phil',
+  History: 'hist',
+  Music: 'music',
+  Sanskrit: 'skt',
+};
+
 const firstName = (student) => student.name.split(' ')[0];
-const emailOf = (student) => `${student.name.split(' ').filter((_, i, a) => i === 0 || i === a.length - 1).join('.').toLowerCase()}@example.com`;
+
+// One roll number per department, assigned in the order students appear above (cached by name so
+// repeat calls for the same student return the same roll number).
+const rollNumbers = new Map();
+const serialByDept = new Map();
+function rollNumberOf(student) {
+  if (rollNumbers.has(student.name)) return rollNumbers.get(student.name);
+  const code = DEPT_CODES[student.department];
+  if (!code) throw new Error(`No roll-number code configured for department "${student.department}"`);
+  const serial = (serialByDept.get(code) ?? 0) + 1;
+  serialByDept.set(code, serial);
+  const roll = `${ADMISSION_YEAR}${code}${String(serial).padStart(2, '0')}`;
+  rollNumbers.set(student.name, roll);
+  return roll;
+}
+const emailOf = (student) => `${rollNumberOf(student)}@${EMAIL_DOMAIN}`;
 
 function checkSampleData() {
   const byFirstName = new Map();
   for (const s of students) {
     if (byFirstName.has(firstName(s))) throw new Error(`Duplicate first name in seed data: ${firstName(s)}`);
     byFirstName.set(firstName(s), s);
-  }
-  const has = (list, name) => list.some((k) => normalizeSkill(k.name) === normalizeSkill(name));
-  for (const [from, to, wanted, offered] of requests) {
-    const requester = byFirstName.get(from);
-    const recipient = byFirstName.get(to);
-    if (!requester || !recipient) throw new Error(`Seed request refers to an unknown student: ${from} -> ${to}`);
-    if (!has(recipient.offered, wanted)) throw new Error(`Seed request ${from} -> ${to}: ${to} does not teach "${wanted}"`);
-    if (!has(requester.offered, offered)) throw new Error(`Seed request ${from} -> ${to}: ${from} does not teach "${offered}"`);
   }
   if (!students.some((s) => emailOf(s) === DEMO_EMAIL)) throw new Error('Demo user missing from seed data');
   for (const [host, title, , , , , capacity, attendees] of classes) {
@@ -312,12 +327,12 @@ checkSampleData();
 await connectDb();
 
 if (config.nodeEnv === 'production') {
-  console.error('Refusing to seed: NODE_ENV is "production" and seeding deletes all users and requests.');
+  console.error('Refusing to seed: NODE_ENV is "production" and seeding deletes all users and classes.');
   await mongoose.disconnect();
   process.exit(1);
 }
 
-await Promise.all([User.deleteMany({}), ExchangeRequest.deleteMany({}), Session.deleteMany({}), Payment.deleteMany({})]);
+await Promise.all([User.deleteMany({}), Session.deleteMany({}), Payment.deleteMany({})]);
 
 const passwordHash = await bcrypt.hash(PASSWORD, 10);
 const users = await User.insertMany([
@@ -326,11 +341,9 @@ const users = await User.insertMany([
     const verification = instructors[first];
     return {
       ...s,
-      email: emailOf({ name: s.name }),
+      email: emailOf(s),
       university: UNIVERSITY,
       passwordHash,
-      // Seeded accounts skip the usual email-verification step, so the demo logins just work.
-      emailVerified: true,
       skillsOffered: offered,
       skillsWanted: wanted,
       ...(verification && {
@@ -344,20 +357,9 @@ const users = await User.insertMany([
       }),
     };
   }),
-  { ...admin, university: UNIVERSITY, passwordHash, emailVerified: true, role: 'admin' },
+  { ...admin, university: UNIVERSITY, passwordHash, role: 'admin' },
 ]);
 const byFirstName = Object.fromEntries(users.map((u) => [firstName(u), u]));
-
-await ExchangeRequest.insertMany(
-  requests.map(([from, to, skillWanted, skillOffered, message, status = 'pending']) => ({
-    requester: byFirstName[from]._id,
-    recipient: byFirstName[to]._id,
-    skillWanted,
-    skillOffered,
-    message,
-    status,
-  })),
-);
 
 const minutes = (n) => new Date(Date.now() + n * 60_000);
 const sessionDocs = classes.map(([host, title, skill, description, when, durationMinutes, capacity, attendees, status = 'scheduled', price = 0]) => {
@@ -384,7 +386,7 @@ const insertedSessions = await Session.insertMany(sessionDocs);
 const seededPayments = insertedSessions.flatMap((s) => (s.price > 0 ? s.attendees.map((student) => ({ student, session: s._id, amount: s.price })) : []));
 if (seededPayments.length > 0) await Payment.insertMany(seededPayments);
 
-console.log(`Seeded ${users.length - 1} students, 1 admin, ${requests.length} exchange requests and ${sessionDocs.length} classes into ${mongoose.connection.name}.`);
-console.log(`Log in as ${DEMO_EMAIL} (a verified instructor), admin@example.com (admin), or any student, e.g. lakshmi.prasanna@example.com. Password: "${PASSWORD}".`);
+console.log(`Seeded ${users.length - 1} students, 1 admin, and ${sessionDocs.length} classes into ${mongoose.connection.name}.`);
+console.log(`Log in as ${DEMO_EMAIL} (a verified instructor), admin@${EMAIL_DOMAIN} (admin), or any student, e.g. ${emailOf(byFirstName.Lakshmi)}. Password: "${PASSWORD}".`);
 console.log("Class times are relative to now, so re-run the seed to refresh them.");
 await mongoose.disconnect();

@@ -92,16 +92,6 @@ export function validateLogin(body = {}) {
   return finish(errors, { email, password });
 }
 
-export function validateVerifyToken(body = {}) {
-  const token = text(body.token);
-  return finish(token ? {} : { token: 'Missing verification token.' }, { token });
-}
-
-export function validateResendVerification(body = {}) {
-  const email = text(body.email).toLowerCase();
-  return finish(EMAIL_RE.test(email) ? {} : { email: 'Enter a valid email address.' }, { email });
-}
-
 // Only fields present in the body are validated and updated.
 export function validateProfile(body = {}) {
   const errors = {};
@@ -124,30 +114,6 @@ export function validateProfile(body = {}) {
   if (body.skillsWanted !== undefined) data.skillsWanted = parseSkills(errors, 'skillsWanted', body.skillsWanted, 'Skills you want to learn');
 
   return finish(errors, data);
-}
-
-export function validateNewRequest(body = {}) {
-  const errors = {};
-  const recipientId = text(body.recipientId);
-  const skillWanted = text(body.skillWanted);
-  const skillOffered = text(body.skillOffered);
-  const message = text(body.message);
-
-  if (!OBJECT_ID_RE.test(recipientId)) errors.recipientId = 'Choose a valid student.';
-  if (!skillWanted) errors.skillWanted = 'Choose the skill you want to learn.';
-  // skillOffered is optional: a student can ask to learn something without offering a skill back.
-  if (skillOffered.length > 40) errors.skillOffered = 'Skill must be at most 40 characters.';
-  if (message.length > 500) errors.message = 'Message must be at most 500 characters.';
-
-  return finish(errors, { recipientId, skillWanted, skillOffered, message });
-}
-
-export function validateRespond(body = {}) {
-  const status = text(body.status);
-  return finish(
-    ['accepted', 'rejected'].includes(status) ? {} : { status: 'Status must be "accepted" or "rejected".' },
-    { status },
-  );
 }
 
 // ---------- Instructors and classes ----------

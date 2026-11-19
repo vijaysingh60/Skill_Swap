@@ -46,14 +46,9 @@ export function StudentCard({ student }: { student: Student }) {
         <SkillList title="Wants to learn" skills={student.skillsWanted} tone="wanted" emptyText="Nothing listed yet" highlight={match?.iCanTeachThem} max={3} />
       </div>
 
-      <div className="grid grid-cols-[auto_1fr] gap-2">
-        <LinkButton to={`/students/${student.id}`} variant="secondary" size="sm">
-          View profile
-        </LinkButton>
-        <LinkButton to={`/students/${student.id}#request`} size="sm">
-          Request session
-        </LinkButton>
-      </div>
+      <LinkButton to={`/students/${student.id}`} variant="secondary" size="sm">
+        View profile
+      </LinkButton>
     </article>
   );
 }

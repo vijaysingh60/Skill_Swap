@@ -1,7 +1,7 @@
-import { LogIn, Send } from 'lucide-react';
+import { LogIn } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
+import { ApiError } from '../api/client';
 import { Alert } from '../components/ui/Alert';
 import { Button } from '../components/ui/Button';
 import { PasswordField, TextField } from '../components/ui/Field';
@@ -19,8 +19,6 @@ export default function Login() {
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [needsVerification, setNeedsVerification] = useState(false);
-  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent'>('idle');
 
   // Always land on the dashboard. The previous version deep-linked back to
   // `location.state.from`, but that state is attached to the browser history
@@ -38,8 +36,6 @@ export default function Login() {
     const found = validateLoginForm(form);
     setErrors(found);
     setFormError(null);
-    setNeedsVerification(false);
-    setResendState('idle');
     if (hasErrors(found)) return focusFirstInvalid(formRef.current);
 
     setSubmitting(true);
@@ -49,22 +45,10 @@ export default function Login() {
       if (err instanceof ApiError) {
         setErrors(err.fields);
         setFormError(err.message);
-        setNeedsVerification(err.data.emailNotVerified === true);
       } else {
         setFormError('Could not log in. Please try again.');
       }
       setSubmitting(false);
-    }
-  };
-
-  const resend = async () => {
-    setResendState('sending');
-    try {
-      await api.resendVerification(form.email.trim());
-    } catch {
-      // The endpoint never reveals whether the email exists, so there's nothing more useful to show on failure here.
-    } finally {
-      setResendState('sent');
     }
   };
 
@@ -74,19 +58,7 @@ export default function Login() {
       <p className="mt-1 text-sm text-slate-600">Log in to pick up where you left off.</p>
 
       <form ref={formRef} onSubmit={submit} className="mt-6 space-y-4" noValidate>
-        {formError && (
-          <Alert variant="error">
-            <p>{formError}</p>
-            {needsVerification &&
-              (resendState === 'sent' ? (
-                <p className="mt-1">New link sent — check your inbox (and spam folder).</p>
-              ) : (
-                <Button type="button" variant="ghost" size="sm" icon={Send} className="mt-1 h-auto px-0 py-0 text-rose-800 hover:bg-transparent hover:underline" loading={resendState === 'sending'} onClick={resend}>
-                  Resend verification email
-                </Button>
-              ))}
-          </Alert>
-        )}
+        {formError && <Alert variant="error">{formError}</Alert>}
         <TextField id="email" label="Email" type="email" autoComplete="email" value={form.email} onChange={set('email')} error={errors.email} />
         <PasswordField id="password" label="Password" autoComplete="current-password" value={form.password} onChange={set('password')} error={errors.password} />
         <Button type="submit" icon={LogIn} loading={submitting} className="w-full" size="lg">

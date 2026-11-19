@@ -1,4 +1,4 @@
-import { ArrowLeftRight, Compass, LayoutDashboard, Presentation, ShieldCheck, Sparkles, UserRound, Video, type LucideIcon } from 'lucide-react';
+import { Compass, LayoutDashboard, Presentation, ShieldCheck, Sparkles, UserRound, Video, type LucideIcon } from 'lucide-react';
 import type { CurrentUser } from '../../types';
 
 export interface NavItem {
@@ -23,7 +23,6 @@ export const navItems: NavItem[] = [
   { to: '/discover', label: 'Discover', short: 'Discover', icon: Compass, visible: always, mobile: (u) => !instructorMode(u) },
   { to: '/classes', label: 'Classes', short: 'Classes', icon: Video, visible: always, mobile: always },
   { to: '/skills', label: 'My Skills', short: 'Skills', icon: Sparkles, visible: always, mobile: () => false },
-  { to: '/requests', label: 'My Requests', short: 'Requests', icon: ArrowLeftRight, visible: always, mobile: always },
   { to: '/profile', label: 'My Profile', short: 'Profile', icon: UserRound, visible: always, mobile: always },
   { to: '/admin', label: 'Admin', short: 'Admin', icon: ShieldCheck, visible: (u) => u.role === 'admin', mobile: () => false },
 ];

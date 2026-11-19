@@ -17,16 +17,11 @@ describe('auth', () => {
     assert.equal(res.status, 201);
     assert.ok(res.body.token);
     assert.equal(res.body.user.email, 'ada@example.com');
-    assert.equal(res.body.user.emailVerified, false, 'not verified yet, but the first session is still granted');
     assert.equal(JSON.stringify(res.body).includes('password'), false);
 
     const stored = await User.findOne({ email: 'ada@example.com' }).select('+passwordHash');
     assert.ok(stored.passwordHash.startsWith('$2'), 'password should be a bcrypt hash');
     assert.notEqual(stored.passwordHash, 'password123');
-
-    // The later tests in this file log Ada back in with a fresh password-only request, so mark her
-    // verified here; the "email verification" describe block below tests the unverified path itself.
-    await User.updateOne({ email: 'ada@example.com' }, { emailVerified: true });
   });
 
   it('rejects invalid registration input with field errors', async () => {
@@ -61,7 +56,7 @@ describe('auth', () => {
   });
 
   it('protects authenticated routes', async () => {
-    for (const [method, path] of [['GET', '/auth/me'], ['PUT', '/users/me'], ['GET', '/users'], ['GET', '/users/recommended'], ['GET', '/requests'], ['POST', '/requests']]) {
+    for (const [method, path] of [['GET', '/auth/me'], ['PUT', '/users/me'], ['GET', '/users'], ['GET', '/users/recommended']]) {
       const res = await api(method, path);
       assert.equal(res.status, 401, `${method} ${path}`);
     }
@@ -181,197 +176,21 @@ describe('discover and matching', () => {
   });
 });
 
-describe('exchange requests', () => {
-  let alice, bob, carol;
-  const send = (token, body) => api('POST', '/requests', { token, body });
-
-  before(async () => {
-    await resetDb();
-    alice = await registerUser({ name: 'Alice' });
-    bob = await registerUser({ name: 'Bob' });
-    carol = await registerUser({ name: 'Carol' });
-    await setSkills(alice.token, [skill('Python')], [skill('Guitar')]);
-    await setSkills(bob.token, [skill('Guitar'), skill('Chess')], [skill('Python')]);
-    await setSkills(carol.token, [skill('Cooking')], []);
-  });
-
-  it('creates a pending request using the canonical skill names', async () => {
-    const res = await send(alice.token, { recipientId: bob.user.id, skillWanted: ' guitar ', skillOffered: 'PYTHON', message: 'Hi Bob!' });
-    assert.equal(res.status, 201);
-    assert.equal(res.body.request.status, 'pending');
-    assert.equal(res.body.request.skillWanted, 'Guitar');
-    assert.equal(res.body.request.skillOffered, 'Python');
-    assert.equal(res.body.request.requester.name, 'Alice');
-    assert.equal(res.body.request.recipient.email, undefined, 'email stays private while pending');
-  });
-
-  it('prevents sending a request to yourself', async () => {
-    const res = await send(alice.token, { recipientId: alice.user.id, skillWanted: 'Python', skillOffered: 'Python' });
-    assert.equal(res.status, 400);
-    assert.match(res.body.message, /yourself/i);
-  });
-
-  it('rejects invalid input', async () => {
-    assert.equal((await send(alice.token, {})).status, 400);
-    assert.equal((await send(alice.token, { recipientId: 'nope', skillWanted: 'x', skillOffered: 'y' })).status, 400);
-    assert.equal((await send(alice.token, { recipientId: bob.user.id, skillWanted: 'Guitar', skillOffered: 'Python', message: 'x'.repeat(501) })).status, 400);
-    assert.equal((await send(alice.token, { recipientId: 'aaaaaaaaaaaaaaaaaaaaaaaa', skillWanted: 'Guitar', skillOffered: 'Python' })).status, 404);
-  });
-
-  it("requires the skills to exist on the right profiles", async () => {
-    const notTaught = await send(alice.token, { recipientId: bob.user.id, skillWanted: 'Cooking', skillOffered: 'Python' });
-    assert.equal(notTaught.status, 400);
-    assert.ok(notTaught.body.errors.skillWanted);
-    const notOffered = await send(alice.token, { recipientId: bob.user.id, skillWanted: 'Chess', skillOffered: 'Juggling' });
-    assert.equal(notOffered.status, 400);
-    assert.ok(notOffered.body.errors.skillOffered);
-  });
-
-  it('blocks duplicate pending requests but allows a different skill pair', async () => {
-    const dupe = await send(alice.token, { recipientId: bob.user.id, skillWanted: 'Guitar', skillOffered: 'Python' });
-    assert.equal(dupe.status, 409);
-    const different = await send(alice.token, { recipientId: bob.user.id, skillWanted: 'Chess', skillOffered: 'Python' });
-    assert.equal(different.status, 201);
-  });
-
-  it('lists incoming and outgoing requests for each side', async () => {
-    const aliceView = await api('GET', '/requests', { token: alice.token });
-    assert.equal(aliceView.body.outgoing.length, 2);
-    assert.equal(aliceView.body.incoming.length, 0);
-    const bobView = await api('GET', '/requests', { token: bob.token });
-    assert.equal(bobView.body.incoming.length, 2);
-    assert.equal(bobView.body.outgoing.length, 0);
-    const carolView = await api('GET', '/requests', { token: carol.token });
-    assert.equal(carolView.body.incoming.length + carolView.body.outgoing.length, 0);
-  });
-
-  it('only lets the recipient accept or reject', async () => {
-    const { body } = await api('GET', '/requests', { token: bob.token });
-    const id = body.incoming[0].id;
-
-    assert.equal((await api('PATCH', `/requests/${id}`, { token: alice.token, body: { status: 'accepted' } })).status, 403, 'requester cannot respond');
-    assert.equal((await api('PATCH', `/requests/${id}`, { token: carol.token, body: { status: 'accepted' } })).status, 404, 'outsider cannot see it');
-    assert.equal((await api('PATCH', `/requests/${id}`, { token: bob.token, body: { status: 'pending' } })).status, 400);
-    assert.equal((await api('PATCH', `/requests/${id}`, { token: bob.token, body: { status: 'cancelled' } })).status, 400);
-    assert.equal((await api('PATCH', '/requests/not-an-id', { token: bob.token, body: { status: 'accepted' } })).status, 404);
-  });
-
-  it('accepts a request, shares emails with both sides, and is final', async () => {
-    const { body } = await api('GET', '/requests', { token: bob.token });
-    const [first, second] = body.incoming;
-
-    const accepted = await api('PATCH', `/requests/${first.id}`, { token: bob.token, body: { status: 'accepted' } });
-    assert.equal(accepted.status, 200);
-    assert.equal(accepted.body.request.status, 'accepted');
-    assert.equal(accepted.body.request.requester.email, alice.email);
-
-    const aliceView = await api('GET', '/requests', { token: alice.token });
-    const mine = aliceView.body.outgoing.find((r) => r.id === first.id);
-    assert.equal(mine.status, 'accepted');
-    assert.equal(mine.recipient.email, bob.email);
-
-    // cannot flip an already-answered request
-    assert.equal((await api('PATCH', `/requests/${first.id}`, { token: bob.token, body: { status: 'rejected' } })).status, 409);
-
-    // rejecting the other one: no emails are shared
-    const rejected = await api('PATCH', `/requests/${second.id}`, { token: bob.token, body: { status: 'rejected' } });
-    assert.equal(rejected.status, 200);
-    assert.equal(rejected.body.request.status, 'rejected');
-    assert.equal(rejected.body.request.requester.email, undefined);
-  });
-
-  it('allows a new request for the same skills once the earlier one is no longer pending', async () => {
-    const res = await send(alice.token, { recipientId: bob.user.id, skillWanted: 'Chess', skillOffered: 'Python' });
-    assert.equal(res.status, 201);
-  });
-});
-
-describe('requests from a student with no skills to offer', () => {
-  let newbie, bob;
-  before(async () => {
-    await resetDb();
-    newbie = await registerUser({ name: 'Newbie' }); // never calls setSkills: skillsOffered stays []
-    bob = await registerUser({ name: 'Bob' });
-    await setSkills(bob.token, [skill('Guitar')], []);
-  });
-
-  it('can send a request without offering anything back', async () => {
-    const res = await api('POST', '/requests', { token: newbie.token, body: { recipientId: bob.user.id, skillWanted: 'Guitar', message: 'Please teach me!' } });
-    assert.equal(res.status, 201);
-    assert.equal(res.body.request.skillWanted, 'Guitar');
-    assert.equal(res.body.request.skillOffered, '');
-  });
-
-  it('still cannot offer a skill it does not have', async () => {
-    const res = await api('POST', '/requests', { token: newbie.token, body: { recipientId: bob.user.id, skillWanted: 'Guitar', skillOffered: 'Python' } });
-    assert.equal(res.status, 400);
-    assert.ok(res.body.errors.skillOffered);
-  });
-
-  it('a duplicate pending request with no skill offered is still blocked', async () => {
-    const dupe = await api('POST', '/requests', { token: newbie.token, body: { recipientId: bob.user.id, skillWanted: 'Guitar' } });
-    assert.equal(dupe.status, 409);
-  });
-
-  it('the recipient sees it as a plain request to learn, and can still accept it', async () => {
-    const { body } = await api('GET', '/requests', { token: bob.token });
-    assert.equal(body.incoming[0].skillOffered, '');
-    const accepted = await api('PATCH', `/requests/${body.incoming[0].id}`, { token: bob.token, body: { status: 'accepted' } });
-    assert.equal(accepted.status, 200);
-    assert.equal(accepted.body.request.requester.email, newbie.email);
-  });
-});
-
-describe('email verification', () => {
-  const email = 'verify.me@uohyd.ac.in';
+describe('registration email domain restriction', () => {
   before(resetDb);
 
-  it('registering only restricts the email domain; any domain name shape still needs verifying', async () => {
-    const wrongDomain = await api('POST', '/auth/register', { body: { name: 'X', email: 'x@gmail.com', password: 'password123', university: 'UoH', department: 'CS' } });
-    assert.equal(wrongDomain.status, 400);
-    assert.match(wrongDomain.body.errors.email, /university email/i);
+  it('rejects an email whose domain is not on the allowed list', async () => {
+    const res = await api('POST', '/auth/register', { body: { name: 'X', email: 'x@gmail.com', password: 'password123', university: 'UoH', department: 'CS' } });
+    assert.equal(res.status, 400);
+    assert.match(res.body.errors.email, /university email/i);
+  });
 
+  it('accepts an allowed domain and can log straight back in (no email verification step)', async () => {
+    const email = 'verify.me@uohyd.ac.in';
     const ok = await api('POST', '/auth/register', { body: { name: 'Vera', email, password: 'password123', university: 'UoH', department: 'CS' } });
     assert.equal(ok.status, 201);
-    assert.equal(ok.body.user.emailVerified, false);
-  });
-
-  it('cannot log back in until the email is verified', async () => {
-    const res = await api('POST', '/auth/login', { body: { email, password: 'password123' } });
-    assert.equal(res.status, 403);
-    assert.equal(res.body.emailNotVerified, true);
-  });
-
-  it('rejects a garbage or expired token', async () => {
-    assert.equal((await api('POST', '/auth/verify-email', { body: { token: 'not-a-real-token' } })).status, 400);
-    await User.updateOne({ email }, { emailVerificationExpires: new Date(Date.now() - 1000) });
-    const { emailVerificationToken } = await User.findOne({ email }).select('+emailVerificationToken');
-    const expired = await api('POST', '/auth/verify-email', { body: { token: emailVerificationToken } });
-    assert.equal(expired.status, 400);
-    assert.match(expired.body.message, /expired/i);
-  });
-
-  it('resend-verification always replies the same way, whether the email is unknown, already verified, or real', async () => {
-    const unknown = await api('POST', '/auth/resend-verification', { body: { email: 'nobody@uohyd.ac.in' } });
-    const real = await api('POST', '/auth/resend-verification', { body: { email } });
-    assert.equal(unknown.status, 200);
-    assert.deepEqual(unknown.body, real.body, 'the response must not reveal which emails are registered');
-  });
-
-  it('verifying with a fresh token logs the user in and the account works from then on', async () => {
-    const { emailVerificationToken } = await User.findOne({ email }).select('+emailVerificationToken');
-    const res = await api('POST', '/auth/verify-email', { body: { token: emailVerificationToken } });
-    assert.equal(res.status, 200);
-    assert.ok(res.body.token);
-    assert.equal(res.body.user.emailVerified, true);
 
     const login = await api('POST', '/auth/login', { body: { email, password: 'password123' } });
     assert.equal(login.status, 200);
-
-    // Already verified: resending must not hand out a usable token for a second verify.
-    const afterVerified = await api('POST', '/auth/resend-verification', { body: { email } });
-    assert.equal(afterVerified.status, 200);
-    const stillGone = await User.findOne({ email }).select('+emailVerificationToken');
-    assert.equal(stillGone.emailVerificationToken, undefined);
   });
 });

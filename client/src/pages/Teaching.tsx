@@ -83,7 +83,7 @@ export default function Teaching() {
       <section aria-label="Overview" className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {stats.map(({ icon: Icon, label, value }) => (
           <div key={label} className="card flex items-center gap-3 p-4">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+            <span className="icon-tile">
               <Icon size={20} aria-hidden />
             </span>
             <span>

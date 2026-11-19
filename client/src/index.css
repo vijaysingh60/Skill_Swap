@@ -1,22 +1,42 @@
 @import 'tailwindcss';
 @import '@fontsource-variable/inter/wght.css';
 
-/* Design tokens. Pink is the brand colour, violet is the secondary accent (skills people want to learn). */
+/*
+ * Design tokens.
+ *
+ * Brand is a deep, muted wine/berry — used sparingly, for primary actions and a few
+ * meaningful highlights, not as an ambient wash over every surface. Violet marks skills
+ * people *want* to learn (vs. brand for skills they teach). Everything else leans on
+ * slate: a near-neutral palette with one confident accent reads as considered, not
+ * "default AI gradient," and keeps the eye on content instead of chrome.
+ */
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 
-  --color-brand-50: #fdf2f8;
-  --color-brand-100: #fce7f3;
-  --color-brand-200: #fbcfe8;
-  --color-brand-300: #f9a8d4;
-  --color-brand-400: #f472b6;
-  --color-brand-500: #ec4899;
-  --color-brand-600: #db2777;
-  --color-brand-700: #be185d;
-  --color-brand-800: #9d174d;
-  --color-brand-900: #831843;
+  --color-brand-50: #fbf2f4;
+  --color-brand-100: #f6e1e7;
+  --color-brand-200: #edc2cf;
+  --color-brand-300: #de96ab;
+  --color-brand-400: #c96884;
+  --color-brand-500: #ac4365;
+  --color-brand-600: #8e2a4d;
+  --color-brand-700: #751f40;
+  --color-brand-800: #611a37;
+  --color-brand-900: #53182f;
 
-  --color-canvas: #fcf9fb;
+  --color-canvas: #f8f8f7;
+
+  /* A tighter, flatter scale than Tailwind's defaults: fewer soft pill shapes, less bounce. */
+  --radius-md: 0.3125rem;
+  --radius-lg: 0.4375rem;
+  --radius-xl: 0.625rem;
+  --radius-2xl: 0.875rem;
+
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(15 23 42 / 0.06), 0 1px 2px -1px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 4px 8px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+  --shadow-lg: 0 12px 24px -8px rgb(15 23 42 / 0.12), 0 4px 8px -4px rgb(15 23 42 / 0.06);
+  --shadow-xl: 0 20px 40px -12px rgb(15 23 42 / 0.16);
 }
 
 @layer base {
@@ -43,7 +63,14 @@
   }
 }
 
-/* The standard surface used for every card. */
+/* The standard surface used for every card: a crisp border carries most of the weight,
+   the shadow is a hairline, not a glow. */
 @utility card {
   @apply rounded-xl border border-slate-200 bg-white shadow-xs;
+}
+
+/* A small, square-cornered icon tile — the one "icon in a tinted box" pattern used
+   across the app, kept in one place instead of re-tinted ad hoc per page. */
+@utility icon-tile {
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-700;
 }

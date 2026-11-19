@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { requireAdmin, requireAuth, requireVerifiedInstructor } from '../middleware/auth.js';
 import * as auth from '../controllers/auth.controller.js';
 import * as users from '../controllers/users.controller.js';
-import * as requests from '../controllers/requests.controller.js';
 import * as instructor from '../controllers/instructor.controller.js';
 import * as admin from '../controllers/admin.controller.js';
 import * as sessions from '../controllers/sessions.controller.js';
@@ -14,20 +13,12 @@ router.get('/health', (_req, res) => res.json({ status: 'ok' }));
 router.post('/auth/register', auth.register);
 router.post('/auth/login', auth.login);
 router.get('/auth/me', requireAuth, auth.me);
-router.post('/auth/verify-email', auth.verifyEmail);
-router.post('/auth/resend-verification', auth.resendVerification);
 
 router.put('/users/me', requireAuth, users.updateMe);
 router.put('/users/me/mode', requireAuth, instructor.setMode);
 router.get('/users', requireAuth, users.listStudents);
 router.get('/users/recommended', requireAuth, users.recommended);
 router.get('/users/:id', requireAuth, users.getStudent);
-
-router.post('/requests', requireAuth, requests.createRequest);
-router.get('/requests', requireAuth, requests.listRequests);
-router.patch('/requests/:id', requireAuth, requests.respondToRequest);
-router.get('/requests/:id/messages', requireAuth, requests.getRequestMessages);
-router.get('/requests/:id/room', requireAuth, requests.getRequestRoom);
 
 router.post('/instructor/apply', requireAuth, instructor.apply);
 

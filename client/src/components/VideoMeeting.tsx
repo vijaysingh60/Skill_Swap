@@ -36,9 +36,8 @@ function loadScript(src: string): Promise<void> {
 }
 
 /**
- * The live video call itself, embedded with the Jitsi IFrame API. Shared by both a scheduled
- * class's room (pages/ClassRoom.tsx) and a 1:1 conversation's on-demand room
- * (pages/RequestRoom.tsx) — both just hand it the room descriptor the server signed.
+ * The live video call itself, embedded with the Jitsi IFrame API. Used by a scheduled class's room
+ * (pages/ClassRoom.tsx), which hands it the room descriptor the server signed.
  */
 export function Meeting({ room, onLeave }: { room: VideoRoom; onLeave: () => void }) {
   const container = useRef<HTMLDivElement>(null);

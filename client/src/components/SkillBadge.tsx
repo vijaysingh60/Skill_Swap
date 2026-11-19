@@ -27,7 +27,7 @@ interface Props {
 
 export function SkillBadge({ skill, tone, highlight, showLevel }: Props) {
   const style = highlight
-    ? 'border-brand-600 bg-brand-600 text-white'
+    ? 'border-brand-300 bg-brand-100 text-brand-800'
     : tone === 'offered'
       ? 'border-brand-100 bg-brand-50 text-brand-800'
       : 'border-violet-200 bg-white text-violet-700';

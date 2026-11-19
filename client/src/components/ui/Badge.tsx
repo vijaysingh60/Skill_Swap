@@ -22,7 +22,7 @@ interface Props {
 
 export function Badge({ tone = 'neutral', icon: Icon, children, className }: Props) {
   return (
-    <span className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-medium', tones[tone], className)}>
+    <span className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium', tones[tone], className)}>
       {Icon && <Icon size={12} aria-hidden />}
       {children}
     </span>

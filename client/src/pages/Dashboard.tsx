@@ -1,12 +1,9 @@
-import { ArrowLeftRight, BadgeCheck, CalendarX, Clock, GraduationCap, Handshake, Inbox, Pencil, Presentation, Search, Sparkles, Users, Video, type LucideIcon } from 'lucide-react';
-import { useState } from 'react';
+import { BadgeCheck, CalendarX, Clock, GraduationCap, Pencil, Presentation, Search, Sparkles, Users, Video, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import { RequestCard } from '../components/RequestCard';
 import { SkillList } from '../components/SkillList';
 import { StudentCard } from '../components/StudentCard';
 import { InstructorBadge } from '../components/InstructorBadge';
-import { Avatar } from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import { LinkButton } from '../components/ui/Button';
 import { EmptyState, ErrorState } from '../components/ui/EmptyState';
@@ -18,12 +15,12 @@ import { useNow } from '../hooks/useNow';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { firstName } from '../lib/dom';
 import { formatTime, phaseAt, timeUntil } from '../lib/time';
-import type { ClassSession, CurrentUser, ExchangeRequest } from '../types';
+import type { ClassSession, CurrentUser } from '../types';
 
 function StatCard({ icon: Icon, label, value, to }: { icon: LucideIcon; label: string; value?: number; to: string }) {
   return (
-    <Link to={to} className="card flex flex-col items-start gap-3 p-4 transition-colors hover:border-brand-200 hover:bg-brand-50/40 sm:flex-row sm:items-center">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+    <Link to={to} className="card flex flex-col items-start gap-3 p-4 transition-colors hover:border-slate-300 hover:bg-slate-50 sm:flex-row sm:items-center">
+      <span className="icon-tile">
         <Icon size={20} aria-hidden />
       </span>
       <span className="min-w-0">
@@ -118,7 +115,6 @@ export default function Dashboard() {
   usePageTitle('Dashboard');
   const user = useCurrentUser();
   const recommended = useFetch(() => api.recommended(4), []);
-  const requests = useFetch(() => api.listRequests(), []);
   const now = useNow();
   // Classes I've joined plus, for verified instructors, the ones I host.
   const verified = user.instructor.status === 'verified';
@@ -130,19 +126,6 @@ export default function Dashboard() {
     .filter((s) => ['upcoming', 'open'].includes(phaseAt(s, now)))
     .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt))
     .slice(0, 3);
-  // Requests answered from this page stay on screen with their new status until the page is reloaded.
-  const [answered, setAnswered] = useState<Record<string, ExchangeRequest>>({});
-
-  const incoming = (requests.data?.incoming ?? []).map((r) => answered[r.id] ?? r);
-  const pendingOnLoad = (requests.data?.incoming ?? []).filter((r) => r.status === 'pending').map((r) => answered[r.id] ?? r);
-  const outgoing = requests.data?.outgoing ?? [];
-
-  const loaded = requests.data !== null;
-  const pendingCount = incoming.filter((r) => r.status === 'pending').length;
-  const activeSwaps = [
-    ...incoming.filter((r) => r.status === 'accepted').map((r) => ({ request: r, other: r.requester, iTeach: r.skillWanted, theyTeach: r.skillOffered })),
-    ...outgoing.filter((r) => r.status === 'accepted').map((r) => ({ request: r, other: r.recipient, iTeach: r.skillOffered, theyTeach: r.skillWanted })),
-  ];
 
   return (
     <div>
@@ -151,39 +134,19 @@ export default function Dashboard() {
         subtitle="Ready to learn something new today?"
         action={
           <LinkButton to="/discover" icon={Search} size="lg">
-            Find a Learning Partner
+            Browse students
           </LinkButton>
         }
       />
 
-      <section aria-label="Overview" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section aria-label="Overview" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard icon={GraduationCap} label="Skills I can teach" value={user.skillsOffered.length} to="/skills" />
         <StatCard icon={Sparkles} label="Skills I want to learn" value={user.skillsWanted.length} to="/skills" />
-        <StatCard icon={Clock} label="Requests to answer" value={loaded ? pendingCount : undefined} to="/requests" />
-        <StatCard icon={Handshake} label="Active swaps" value={loaded ? activeSwaps.length : undefined} to="/requests" />
+        <StatCard icon={Video} label="Upcoming classes" value={classes.data ? upcomingClasses.length : undefined} to="/classes" />
       </section>
 
       <div className="mt-10 grid grid-cols-1 gap-10 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-10">
-          <section aria-labelledby="pending-heading">
-            <SectionTitle id="pending-heading" title="Pending requests" subtitle="Students waiting for your reply." to="/requests" linkLabel="View all" />
-            {requests.loading && !requests.data ? (
-              <LoadingList count={2} label="Loading requests…" />
-            ) : requests.error ? (
-              <ErrorState message={requests.error} onRetry={requests.reload} />
-            ) : pendingOnLoad.length === 0 ? (
-              <EmptyState icon={Inbox} title="You’re all caught up">
-                When someone asks to swap skills with you, their request will appear here.
-              </EmptyState>
-            ) : (
-              <div className="space-y-4">
-                {pendingOnLoad.map((r) => (
-                  <RequestCard key={r.id} request={r} direction="incoming" onUpdated={(updated) => setAnswered((a) => ({ ...a, [updated.id]: updated }))} />
-                ))}
-              </div>
-            )}
-          </section>
-
           <section aria-labelledby="classes-heading">
             <SectionTitle id="classes-heading" title="Upcoming classes" subtitle="Live classes you’ve joined or host." to="/classes" linkLabel="Find a class" />
             {classes.loading && !classes.data ? (
@@ -231,7 +194,7 @@ export default function Dashboard() {
           </section>
         </div>
 
-        <aside className="min-w-0 space-y-6" aria-label="Your skills and swaps">
+        <aside className="min-w-0 space-y-6" aria-label="Your skills">
           <InstructorCard user={user} />
 
           <section className="card p-5" aria-labelledby="skills-heading">
@@ -247,47 +210,6 @@ export default function Dashboard() {
               <SkillList title="I can teach" skills={user.skillsOffered} tone="offered" emptyText="No skills added yet." />
               <SkillList title="I want to learn" skills={user.skillsWanted} tone="wanted" emptyText="No skills added yet." />
             </div>
-          </section>
-
-          <section className="card p-5" aria-labelledby="swaps-heading">
-            <h2 id="swaps-heading" className="mb-4 text-base">
-              Active swaps
-            </h2>
-            {requests.loading && !requests.data ? (
-              <Skeleton className="h-16 w-full" />
-            ) : activeSwaps.length === 0 ? (
-              <p className="text-sm text-slate-600">Accepted requests show up here, with contact details so you can plan your first session.</p>
-            ) : (
-              <ul className="space-y-4">
-                {activeSwaps.map(({ request, other, iTeach, theyTeach }) => (
-                  <li key={request.id} className="flex items-start gap-3">
-                    <Avatar name={other.name} size="sm" />
-                    <div className="min-w-0 text-sm">
-                      <Link to={`/students/${other.id}`} className="font-medium text-slate-900 hover:text-brand-700">
-                        {other.name}
-                      </Link>
-                      <p className="flex flex-wrap items-center gap-x-1 text-xs text-slate-600">
-                        {/* Either side's skill can be blank: a one-directional request offers nothing back. */}
-                        {iTeach && theyTeach ? (
-                          <>
-                            You teach {iTeach} <ArrowLeftRight size={12} aria-hidden /> {firstName(other.name)} teaches {theyTeach}
-                          </>
-                        ) : theyTeach ? (
-                          <>{firstName(other.name)} is teaching you {theyTeach}</>
-                        ) : (
-                          <>You’re teaching {firstName(other.name)} {iTeach}</>
-                        )}
-                      </p>
-                      {other.email && (
-                        <a href={`mailto:${other.email}`} className="break-all text-xs font-medium text-brand-700 hover:underline">
-                          {other.email}
-                        </a>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
           </section>
         </aside>
       </div>
